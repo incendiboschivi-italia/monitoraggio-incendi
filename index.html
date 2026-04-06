@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoraggio Incendi Italia - Real Time</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #map { height: calc(100vh - 60px); width: 100%; }
+        header { 
+            height: 60px; background: #2c3e50; color: white; 
+            display: flex; align-items: center; padding: 0 20px; justify-content: space-between;
+        }
+        .login-box input { padding: 5px; border-radius: 4px; border: none; }
+        .login-box button { padding: 5px 15px; cursor: pointer; background: #e74c3c; color: white; border: none; border-radius: 4px; }
+        .hidden { display: none; }
+        .legend { background: white; padding: 10px; line-height: 1.5; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+
+<header>
+    <strong>🔥 INCENDI ITALIA LIVE</strong>
+    <div id="auth-ui">
+        <div id="login-form">
+            <input type="email" id="email" placeholder="Email Volontario">
+            <input type="password" id="pass" placeholder="Password">
+            <button onclick="login()">Accedi</button>
+        </div>
+        <div id="user-info" class="hidden">
+            <span>Sei loggato come Volontario</span>
+            <button onclick="logout()">Esci</button>
+        </div>
+    </div>
+</header>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script type="module">
+    // --- 1. CONFIGURAZIONE FIREBASE ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
+        authDomain: "monitoraggioincendi-41f5f.firebaseapp.com",
+        projectId: "monitoraggioincendi-41f5f",
+        storageBucket: "monitoraggioincendi-41f5f.firebasestorage.app",
+        messagingSenderId: "63942195354",
+        appId: "1:63942195354:web:cc5bb978858676c6748723"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth();
+    const db = getFirestore();
+
+    // --- 2. SETUP MAPPA ---
+    const map = L.map('map').setView([41.8719, 12.5674], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // Icone
+    const nasaIcon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/785/785116.png',
+        iconSize: [25, 25]
+    });
+    const volontarioIcon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/4359/4359654.png',
+        iconSize: [35, 35],
+        iconAnchor: [17, 35]
+    });
+
+    // --- 3. DATI NASA (SATELLITE) ---
+    const NASA_KEY = "23be8e2bdf02493090dfd0a9667fe3cc";
+    async function loadNasaData() {
+        try {
+            const res = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/7`);
+            const csv = await res.text();
+            const lines = csv.split('\n').slice(1);
+            lines.forEach(line => {
+                const c = line.split(',');
+                if(c.length > 2) {
+                    L.marker([parseFloat(c[1]), parseFloat(c[2])], {icon: nasaIcon})
+                     .addTo(map).bindPopup("Rilevamento Satellite NASA");
+                }
+            });
+        } catch(e) { console.error("Errore NASA:", e); }
+    }
+    loadNasaData();
+
+    // --- 4. GESTIONE VOLONTARI (REAL-TIME) ---
+    window.login = () => {
+        const e = document.getElementById('email').value;
+        const p = document.getElementById('pass').value;
+        signInWithEmailAndPassword(auth, e, p).catch(alert);
+    };
+    window.logout = () => signOut(auth);
+
+    onAuthStateChanged(auth, user => {
+        const loginForm = document.getElementById('login-form');
+        const userInfo = document.getElementById('user-info');
+        if (user) {
+            loginForm.classList.add('hidden');
+            userInfo.classList.remove('hidden');
+        } else {
+            loginForm.classList.remove('hidden');
+            userInfo.classList.add('hidden');
+        }
+    });
+
+    // Segnalazione su click
+    map.on('click', async (e) => {
+        if (auth.currentUser) {
+            const desc = prompt("Cosa vedi? (es. fumo denso, fiamme alte)");
+            if (desc) {
+                await addDoc(collection(db, "segnalazioni"), {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                    desc: desc,
+                    user: auth.currentUser.email,
+                    time: new Date()
+                });
+            }
+        } else {
+            alert("Accedi come volontario per segnalare!");
+        }
+    });
+
+    // Ascolta il database e aggiorna la mappa senza ricaricare
+    onSnapshot(collection(db, "segnalazioni"), (snap) => {
+        snap.docChanges().forEach(change => {
+            if (change.type === "added") {
+                const d = change.doc.data();
+                L.marker([d.lat, d.lng], {icon: volontarioIcon}).addTo(map)
+                 .bindPopup(`<b>Segnalazione Volontaria</b><br>${d.desc}<br><small>${d.user}</small>`);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
