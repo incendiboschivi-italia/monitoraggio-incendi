@@ -79,10 +79,16 @@
             const lon = parseFloat(c[1]);
             const bright = parseFloat(c[2]);
 
-            // --- FILTRO RIGIDO: Niente sotto la Sicilia, niente sopra le Alpi, niente fuori dalle coste ---
-            const isItalia = (lat > 36.6 && lat < 47.0) && (lon > 6.7 && lon < 18.4);
+            // 1. FILTRO BASE (Rettangolo Italia)
+            let check = (lat > 36.6 && lat < 47.0) && (lon > 6.7 && lon < 18.5);
 
-            if (isItalia) {
+            // 2. ESCLUSIONI CHIRURGICHE (Zone fuori ma vicine)
+            if (lon < 9.6 && lat < 43.0) check = false; // Rimuove Corsica e parte della Sardegna francese
+            if (lon > 13.0 && lat > 45.0) check = false; // Rimuove Slovenia/Croazia del Nord
+            if (lon > 15.0 && lat < 42.0) check = false; // Rimuove fiamme nei Balcani bassi e mare
+            if (lat < 37.0) check = false; // Taglio netto per la Tunisia
+
+            if (check) {
                 const temp = (bright - 273.15).toFixed(0);
                 const color = temp > 50 ? '#d73027' : '#fdae61';
                 
@@ -91,15 +97,13 @@
                         html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, 
                         className: 'f-icon' 
                     })
-                }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Italia: ${temp}°C`);
+                }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Nazionale: ${temp}°C`);
                 n++;
             }
         }
-        // Questo cambierà il numero in alto: se vedi un numero BASSO (tipo 10 o 20), allora funziona!
         document.getElementById('count').innerText = `${n} Incendi in Italia`;
     } catch (e) { console.error("Errore NASA"); }
 }
-
     function loadCloudData() {
         onSnapshot(collection(db, "segnalazioni"), (snap) => {
             cloudLayer.clearLayers();
