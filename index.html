@@ -79,7 +79,7 @@
     async function loadNasaData() {
         try {
             // USIAMO I BACKTICK ` PER LA NASA_KEY
-            const res = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/7`);
+            const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/7`);
             const csv = await res.text();
             const lines = csv.split('\n').slice(1);
             lines.forEach(line => {
