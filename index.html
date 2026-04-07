@@ -5,6 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoraggio Incendi Italia - Real Time</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    // Creiamo un'icona personalizzata a forma di fiamma
+const fireIcon = L.divIcon({
+    html: '<i class="fas fa-fire" style="color: #e74c3c; font-size: 20px;"></i>',
+    className: 'custom-fire-icon',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+});
+
+// Nella funzione loadNasaData, sostituisci il marker con questo:
+L.marker([lat, lon], {icon: fireIcon})
+ .addTo(map)
+ .bindPopup(`
+    <div style="text-align:center">
+        <b style="color:#e74c3c">🔥 POSSIBILE INCENDIO</b><br>
+        <hr>
+        <b>Lat:</b> ${lat.toFixed(4)}<br>
+        <b>Lon:</b> ${lon.toFixed(4)}<br>
+        <small>Fonte: NASA FIRMS (VIIRS)</small>
+    </div>
+ `);
     <style>
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { height: calc(100vh - 60px); width: 100%; }
