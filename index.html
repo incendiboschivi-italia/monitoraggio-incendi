@@ -77,13 +77,18 @@
         iconAnchor: [17, 35]
     });
 
-    // --- 3. DATI NASA (SATELLITE) ---
+// --- 3. DATI NASA (SATELLITE) ---
     const NASA_KEY = "23be8e2bdf02493090dfd0a9667fe3cc";
     async function loadNasaData() {
         try {
+            // NOTA: Qui uso i BACKTICK ` (tasto Alt + 96)
             const res = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/7`);
+            
+            if (!res.ok) throw new Error("Errore risposta NASA");
+
             const csv = await res.text();
             const lines = csv.split('\n').slice(1);
+            
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
@@ -91,7 +96,9 @@
                      .addTo(map).bindPopup("Rilevamento Satellite NASA");
                 }
             });
-        } catch(e) { console.error("Errore NASA:", e); }
+        } catch(e) { 
+            console.error("Errore NASA:", e); 
+        }
     }
     loadNasaData();
 
