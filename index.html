@@ -21,7 +21,7 @@
 <body>
 
 <header>
-    <div id="stat">🇮🇹 IT CENTRALE ITALIA: <span id="count">Inserire Codice</span></div>
+    <div id="stat">🇮🇹 CENTRALE ITALIA: <span id="count">Inserire Codice</span></div>
     <div id="login-section" class="login-box">
         <input type="password" id="operator-code" placeholder="Codice Operatore">
         <button onclick="checkAuth()">ENTRA</button>
@@ -34,7 +34,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
@@ -54,25 +54,27 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // --- ARCHIVIO FALSI POSITIVI (Lavoro di oggi) ---
-    const industrialHotspots = [
-        {lat: 40.48, lon: 17.22, name: "Ex Ilva Taranto"},
-        {lat: 37.13, lon: 15.18, name: "Polo Industriale Priolo"},
-        {lat: 45.45, lon: 12.23, name: "Porto Marghera"},
-        {lat: 42.92, lon: 10.53, name: "Acciaierie Piombino"},
-        {lat: 43.58, lon: 10.33, name: "Raffineria Livorno"},
-        {lat: 44.91, lon: 8.82, name: "Raffineria Sannazzaro"},
-        {lat: 38.20, lon: 15.24, name: "Raffineria Milazzo"},
-        {lat: 37.05, lon: 14.25, name: "Raffineria Gela"}
+    // --- ARCHIVIO COMPLETO FALSI POSITIVI (Analisi di tutti i tuoi allegati) ---
+    const blackList = [
+        {lat: 37.75, lon: 14.99, name: "Etna"}, //
+        {lat: 38.79, lon: 15.21, name: "Stromboli"},
+        {lat: 40.48, lon: 17.22, name: "Taranto (Ilva)"}, //
+        {lat: 37.13, lon: 15.18, name: "Priolo/Augusta"}, //
+        {lat: 45.45, lon: 12.23, name: "Porto Marghera"}, //
+        {lat: 44.91, lon: 8.82,  name: "Sannazzaro"}, 
+        {lat: 43.58, lon: 10.33, name: "Livorno Raff."},
+        {lat: 42.92, lon: 10.53, name: "Piombino Acc."},
+        {lat: 37.05, lon: 14.25, name: "Gela Raff."},
+        {lat: 38.20, lon: 15.24, name: "Milazzo Raff."}
     ];
 
     window.checkAuth = function() {
         if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
             document.getElementById('login-section').innerHTML = "<span class='staff-tag'>⭐ STAFF ATTIVO</span>";
             loadNasaData();
-            loadCloudData();
+            loadCloudData(); // Re-inserito caricamento segnalazioni manuali
             addLegend();
-        } else { alert("Codice Operatore non valido!"); }
+        } else { alert("Codice Operatore errato!"); }
     };
 
     async function loadNasaData() {
@@ -91,53 +93,57 @@
                 const lon = parseFloat(c[1]);
                 const bright = parseFloat(c[2]);
 
-                // 1. FILTRO GEOGRAFICO (Confini Nazionali)
+                // 1. FILTRI CONFINI DRASTICI (Via Svizzera, Balcani, Corsica)
                 let isValid = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
-
-                // Blocchi Esclusione Estero
+                
                 if (lat > 46.55) isValid = false; // Svizzera
                 if (lon > 13.6 && lat > 42.0) isValid = false; // Balcani
                 if (lon < 9.7 && lat > 41.3 && lat < 43.1) isValid = false; // Corsica
                 if (lat < 37.1) isValid = false; // Tunisia
 
-                // 2. FILTRO FALSI POSITIVI (Aree Industriali)
-                industrialHotspots.forEach(spot => {
-                    const distance = Math.sqrt(Math.pow(lat - spot.lat, 2) + Math.pow(lon - spot.lon, 2));
-                    if (distance < 0.04) isValid = false; 
+                // 2. FILTRO FALSI POSITIVI INDUSTRIALI E VULCANI
+                blackList.forEach(point => {
+                    const d = Math.sqrt(Math.pow(lat - point.lat, 2) + Math.pow(lon - point.lon, 2));
+                    if (d < 0.05) isValid = false; 
                 });
 
                 if (isValid) {
                     const temp = (bright - 273.15).toFixed(0);
-                    const color = temp > 50 ? '#d73027' : '#fdae61';
+                    const color = temp > 60 ? '#d73027' : '#fdae61';
                     L.marker([lat, lon], {
                         icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, className: 'f-icon' })
-                    }).addTo(nasaLayer).bindPopup(`🔥 Incendio: ${temp}°C`);
+                    }).addTo(nasaLayer).bindPopup(`🔥 Focolaio: ${temp}°C`);
                     n++;
                 }
             }
             document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { console.error("Errore dati NASA"); }
+        } catch (e) { console.error("Errore NASA"); }
     }
 
     function loadCloudData() {
-        onSnapshot(collection(db, "segnalazioni"), (snap) => {
+        const q = query(collection(db, "segnalazioni"), orderBy("timestamp", "desc"));
+        onSnapshot(q, (snap) => {
             cloudLayer.clearLayers();
             snap.forEach(doc => {
-                const d = doc.data();
-                if (d.lat && d.lon) {
-                    L.marker([d.lat, d.lon], {
+                const data = doc.data();
+                if (data.lat && data.lon) {
+                    L.marker([data.lat, data.lon], {
                         icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' })
-                    }).addTo(cloudLayer).bindPopup(d.desc || "Segnalazione");
+                    }).addTo(cloudLayer).bindPopup(`<b>Segnalazione Staff:</b><br>${data.desc}`);
                 }
             });
         });
     }
 
     function addLegend() {
+        if (document.querySelector('.legend')) return;
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function() {
             const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>LEGENDA</b><br><i class="fas fa-fire" style="color:#d73027"></i> Critico<br><i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br><i class="fas fa-camera" style="color:purple"></i> Cloud';
+            div.innerHTML = '<b>LEGENDA</b><br>' +
+                            '<i class="fas fa-fire" style="color:#d73027"></i> Critico<br>' +
+                            '<i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br>' +
+                            '<i class="fas fa-camera" style="color:purple"></i> Segnalazione Cloud';
             return div;
         };
         legend.addTo(map);
@@ -147,7 +153,12 @@
         if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
             const desc = prompt("Descrizione incendio:");
             if (desc) { 
-                await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() }); 
+                await addDoc(collection(db, "segnalazioni"), { 
+                    lat: e.latlng.lat, 
+                    lon: e.latlng.lng, 
+                    desc: desc, 
+                    timestamp: new Date() 
+                }); 
             }
         }
     });
