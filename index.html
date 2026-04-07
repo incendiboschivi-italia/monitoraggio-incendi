@@ -79,7 +79,7 @@
     async function loadNasaData() {
         try {
             // Usiamo WLD (mondo) perché ITA spesso viene bloccato dal server NASA
-            const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/WLD/1`;
+            const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/ITA/1`;
             const res = await fetch(url);
             if (!res.ok) throw new Error("Errore NASA: " + res.status);
 
