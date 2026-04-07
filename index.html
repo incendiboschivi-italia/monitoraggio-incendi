@@ -82,7 +82,6 @@
     // 4. CARICAMENTO DATI
 async function loadNasaData() {
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
-        // URL ottimizzato per l'area italiana
         const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
         
         try {
@@ -90,19 +89,32 @@ async function loadNasaData() {
             const csv = await res.text();
             const lines = csv.split('\n').filter(l => l.trim().length > 0).slice(1);
             
-            let italianFires = 0; // Contatore per i soli incendi in Italia
-
+            let italianFires = 0;
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
                     const lat = parseFloat(c[0]);
                     const lon = parseFloat(c[1]);
 
-                    // --- IL FILTRO ITALIA ---
-                    // Controlla se il punto è nei confini (Lat: 35-47, Lon: 6-18)
-                    if (lat > 35.4 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
-                        italianFires++; // Incrementa il contatore nazionale
-                        
+                    // --- FILTRO ITALIA ULTRA-PRECISO ---
+                    let isItaly = false;
+                    
+                    // Nord e Centro Italia
+                    if (lat > 39.0 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
+                        // Escludiamo la zona dei Balcani a Est (sopra i 42 gradi di latitudine escludiamo ciò che è oltre i 14 gradi est)
+                        if (!(lat > 42.0 && lon > 14.5)) isItaly = true;
+                    }
+                    // Sud Italia e Sicilia
+                    else if (lat > 36.5 && lat <= 39.0 && lon > 12.0 && lon < 18.5) {
+                        isItaly = true;
+                    }
+                    // Sardegna
+                    else if (lat > 38.8 && lat < 41.5 && lon > 8.0 && lon < 10.0) {
+                        isItaly = true;
+                    }
+
+                    if (isItaly) {
+                        italianFires++;
                         const bright = parseFloat(c[2]); 
                         const col = getColor(bright);
 
@@ -114,17 +126,16 @@ async function loadNasaData() {
                         });
 
                         L.marker([lat, lon], {icon: fireIcon}).addTo(map)
-                         .bindPopup(`<b>Dati Satellite</b><br>Intensità: ${bright}K<br>Lat: ${lat}<br>Lon: ${lon}`);
+                         .bindPopup(`<b>Dati Satellite</b><br>Intensità: ${bright}K`);
 
                         L.circle([lat, lon], { color: col, fillColor: col, fillOpacity: 0.2, radius: 2000 }).addTo(map);
                     }
                 }
             });
 
-            // Aggiorna il contatore in alto con i soli dati italiani
-            document.getElementById('fire-count').innerText = italianFires + " rilevamenti in Italia";
+            document.getElementById('fire-count').innerText = italianFires + " focolai in Italia";
 
-        } catch(e) { console.error("Errore:", e); }
+        } catch(e) { console.error(e); }
     }
 
     // 5. AGGIUNTA LEGENDA
