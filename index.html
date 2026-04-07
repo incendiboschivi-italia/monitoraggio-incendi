@@ -86,37 +86,33 @@
                     const bright = parseFloat(c[2]);
                     const idPunto = `${lat}_${lon}`;
 
+                    // --- FILTRO GEOGRAFICO CHIRURGICO ---
                     let isItaly = false;
-                    // Filtro Italia preciso (Esclude i Balcani a Est di 13.8)
-                    if (lat >= 44.0 && lat <= 47.1 && lon >= 6.6 && lon <= 13.8) isItaly = true;
-                    else if (lat >= 39.5 && lat < 44.0 && lon >= 7.0 && lon <= 15.5) isItaly = true;
-                    else if (lat >= 36.5 && lat < 39.5 && lon >= 12.0 && lon <= 18.8) isItaly = true;
-                    else if (lat >= 38.8 && lat <= 41.5 && lon >= 8.0 && lon <= 10.0) isItaly = true;
 
-                    if (isItaly && !puntiRimossi.includes(idPunto)) {
-                        count++;
-                        const col = getColor(bright);
-                        const fireIcon = L.divIcon({
-                            html: `<i class="fas fa-fire" style="color: ${col}; font-size: 22px; text-shadow: 0 0 3px black;"></i>`,
-                            className: 'custom-fire-icon', iconSize: [20, 20], iconAnchor: [10, 10]
-                        });
-
-                        let popupContent = `<b>🔥 Segnalazione</b><br>Intensità: ${bright}K`;
-                        if (isLogged) {
-                            popupContent += `<br><button class="btn-delete" onclick="rimuoviPunto('${idPunto}')">Elimina Segnalazione</button>`;
-                        }
-
-                        L.marker([lat, lon], {icon: fireIcon}).addTo(markersLayer).bindPopup(popupContent);
-                        L.circle([lat, lon], { color: col, fillColor: col, fillOpacity: 0.2, radius: 1500 }).addTo(markersLayer);
+                    // 1. NORD-EST (Taglio netto per Gorizia e Istria)
+                    if (lat >= 45.4 && lat <= 47.1) {
+                        if (lon >= 6.6 && lon <= 13.6) isItaly = true; // Trieste inclusa, Slovenia fuori
                     }
-                }
-            });
-            document.getElementById('fire-count').innerText = count + " focolai in Italia";
-        } catch(e) { 
-            console.error(e); 
-        }
-    }
+                    // 2. NORD-OVEST / CENTRO (Confini standard)
+                    else if (lat >= 44.0 && lat < 45.4) {
+                        if (lon >= 6.6 && lon <= 13.8) isItaly = true;
+                    }
+                    // 3. CENTRO-SUD (Esclude i Balcani via mare)
+                    else if (lat >= 39.5 && lat < 44.0) {
+                        if (lon >= 7.2 && lon <= 15.5) isItaly = true; // Corsica fuori (inizia a lon 8.5 ma lat 41-43)
+                        // Controllo extra anti-Corsica:
+                        if (lon < 9.6 && lat > 41.3 && lat < 43.1) isItaly = false;
+                    }
+                    // 4. SUD E ISOLE (Sopra la Tunisia)
+                    else if (lat >= 36.5 && lat < 39.5) {
+                        if (lon >= 12.0 && lon <= 18.8) isItaly = true;
+                    }
+                    // 5. SARDEGNA (Box dedicato)
+                    if (lat >= 38.8 && lat <= 41.3 && lon >= 8.0 && lon <= 10.0) {
+                        isItaly = true;
+                    }
 
+                    // --- FINE FILTRO ---
     function rimuoviPunto(id) {
         puntiRimossi.push(id);
         localStorage.setItem('puntiRimossi', JSON.stringify(puntiRimossi));
