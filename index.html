@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centrale Operativa Incendi - Italia</title>
+    <title>Centrale Operativa Incendi - Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -31,7 +31,7 @@
 <header>
     <div>🔥 CENTRALE INCENDI: <span id="fire-count" style="color:#ffdd59; font-weight:bold;">Caricamento...</span></div>
     <div id="login-section" class="login-box">
-        <input type="password" id="operator-code" placeholder="Codice Operatore">
+        <input type="password" id="operator-code" placeholder="Codice Accesso">
         <button onclick="checkAuth()">ENTRA</button>
     </div>
     <div id="user-logged" class="hidden">
@@ -51,4 +51,127 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     const map = L.map('map').setView([42.0, 12.5], 6);
-    L.tileLayer('https://
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let userRole = null;
+    let puntiRimossi = JSON.parse(localStorage.getItem('puntiRimossi')) || [];
+    let segnalazioniManuali = JSON.parse(localStorage.getItem('segnalazioniManuali')) || [];
+    let markersLayer = L.layerGroup().addTo(map);
+    let manualLayer = L.layerGroup().addTo(map);
+
+    function checkAuth() {
+        const code = document.getElementById('operator-code').value;
+        const roleLabel = document.getElementById('role-label');
+        if (code === "GABRIELE_STAFF") {
+            userRole = 'staff';
+            roleLabel.innerText = "⭐ STAFF";
+            roleLabel.className = "status-tag status-staff";
+            document.getElementById('staff-only-actions').classList.remove('hidden');
+        } else if (code === "VOLONTARIO2024") {
+            userRole = 'volontario';
+            roleLabel.innerText = "👥 VOLONTARIO";
+            roleLabel.className = "status-tag status-volontario";
+        } else { alert("Codice Errato."); return; }
+        
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('user-logged').classList.remove('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        loadNasaData();
+        renderManuali();
+    }
+
+    map.on('click', function(e) {
+        if (!userRole) return;
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        const div = document.createElement('div');
+        div.innerHTML = `<b>📝 Nuova Segnalazione</b><br><textarea id="desc" rows="3" placeholder="Descrizione..."></textarea><br><input type="file" id="photo" accept="image/*" style="font-size:11px; margin-top:5px;"><br><button class="btn-send" id="sendBtn">INVIA</button>`;
+        const popup = L.popup().setLatLng(e.latlng).setContent(div).openOn(map);
+        document.getElementById('sendBtn').onclick = function() {
+            const desc = document.getElementById('desc').value;
+            const file = document.getElementById('photo').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = ev => salvaSegnalazione(lat, lon, desc, ev.target.result);
+                reader.readAsDataURL(file);
+            } else { salvaSegnalazione(lat, lon, desc, null); }
+        };
+    });
+
+    function salvaSegnalazione(lat, lon, desc, img) {
+        segnalazioniManuali.push({ id: 'm_'+Date.now(), lat, lon, desc, img, ora: new Date().toLocaleString('it-IT') });
+        localStorage.setItem('segnalazioniManuali', JSON.stringify(segnalazioniManuali));
+        map.closePopup();
+        renderManuali();
+    }
+
+    function renderManuali() {
+        manualLayer.clearLayers();
+        segnalazioniManuali.forEach(s => {
+            const icon = L.divIcon({ html: `<i class="fas fa-camera" style="color: #9b59b6; font-size: 24px;"></i>`, className: 'm-icon' });
+            let html = `<b>📍 RAPPORTO UMANO</b><br><small>${s.ora}</small><br><i>"${s.desc || ''}"</i>`;
+            if (s.img) html += `<br><img src="${s.img}" class="preview-img">`;
+            if (userRole === 'staff') html += `<br><button class="btn-delete" onclick="eliminaManuale('${s.id}')">Elimina</button>`;
+            L.marker([s.lat, s.lon], {icon}).addTo(manualLayer).bindPopup(html, {minWidth: 200});
+        });
+    }
+
+    function eliminaManuale(id) {
+        segnalazioniManuali = segnalazioniManuali.filter(x => x.id !== id);
+        localStorage.setItem('segnalazioniManuali', JSON.stringify(segnalazioniManuali));
+        renderManuali();
+    }
+
+    async function loadNasaData() {
+        const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
+        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
+        try {
+            const res = await fetch(url);
+            const csv = await res.text();
+            const lines = csv.split('\n').slice(1);
+            markersLayer.clearLayers();
+            let count = 0;
+            lines.forEach(line => {
+                const c = line.split(',');
+                if (c.length < 3) return;
+                const lat = parseFloat(c[0]), lon = parseFloat(c[1]), bright = parseFloat(c[2]);
+                const celsius = (bright - 273.15).toFixed(1);
+                const idPunto = `${lat}_${lon}`;
+
+                let isItaly = false;
+                if (lat >= 44.8 && lat <= 47.1 && lon >= 6.6 && lon <= 13.5) isItaly = true;
+                else if (lat >= 44.0 && lat < 44.8 && lon >= 6.6 && lon <= 13.8) isItaly = true;
+                else if (lat >= 39.5 && lat < 44.0 && lon >= 7.2 && lon <= 15.5) {
+                    isItaly = true;
+                    if (lon < 9.6 && lat > 41.3 && lat < 43.1) isItaly = false;
+                }
+                else if (lat >= 36.5 && lat < 39.5 && lon >= 12.0 && lon <= 18.8) isItaly = true;
+                else if (lat >= 38.8 && lat <= 41.3 && lon >= 8.0 && lon <= 10.0) isItaly = true;
+
+                if (isItaly && !puntiRimossi.includes(idPunto)) {
+                    count++;
+                    const col = bright > 325 ? '#d73027' : bright > 315 ? '#f46d43' : '#fdae61';
+                    const icon = L.divIcon({ html: `<i class="fas fa-fire" style="color: ${col}; font-size: 22px;"></i>`, className: 'f-icon' });
+                    let pop = `<b>🔥 Satellite</b><br>Temperatura: <b>${celsius}°C</b>`;
+                    if (userRole === 'staff') pop += `<br><button class="btn-delete" onclick="rimuoviPunto('${idPunto}')">Elimina</button>`;
+                    L.marker([lat, lon], {icon}).addTo(markersLayer).bindPopup(pop);
+                }
+            });
+            document.getElementById('fire-count').innerText = count + " satellitari + " + segnalazioniManuali.length + " manuali";
+        } catch(e) { console.error(e); }
+    }
+
+    function rimuoviPunto(id) {
+        puntiRimossi.push(id);
+        localStorage.setItem('puntiRimossi', JSON.stringify(puntiRimossi));
+        loadNasaData();
+    }
+
+    function resetTutto() {
+        if(confirm("Vuoi azzerare tutto?")) { localStorage.clear(); location.reload(); }
+    }
+
+    loadNasaData();
+</script>
+</body>
+</html>
