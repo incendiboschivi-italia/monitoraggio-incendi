@@ -8,23 +8,18 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { margin: 0; font-family: 'Segoe UI', sans-serif; }
-        #map { height: calc(100vh - 100px); width: 100%; }
+        #map { height: calc(100vh - 60px); width: 100%; }
         header {
             height: 60px; background: #2c3e50; color: white;
             display: flex; align-items: center; padding: 0 20px; justify-content: space-between;
         }
         .login-box input { padding: 6px; border-radius: 4px; border: none; }
         .login-box button { padding: 6px 15px; cursor: pointer; background: #e74c3c; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        #admin-panel { 
-            height: 40px; background: #ecf0f1; display: flex; align-items: center; 
-            padding: 0 20px; gap: 15px; border-bottom: 2px solid #bdc3c7;
-        }
+        #admin-panel { height: 40px; background: #ecf0f1; display: flex; align-items: center; padding: 0 20px; gap: 15px; border-bottom: 2px solid #bdc3c7; }
         .hidden { display: none; }
-        .info.legend {
-            padding: 10px; background: white; background: rgba(255,255,255,0.9);
-            line-height: 18px; color: #333; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);
-        }
+        .info.legend { padding: 10px; background: rgba(255,255,255,0.9); line-height: 18px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
         .info.legend i { width: 16px; height: 16px; float: left; margin-right: 8px; opacity: 0.8; }
+        .btn-delete { background: #e74c3c; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 10px; width: 100%; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -41,123 +36,93 @@
 </header>
 
 <div id="admin-panel" class="hidden">
-    <span style="font-size: 13px; color: #7f8c8d;">PANNELLO COMANDI:</span>
-    <button onclick="alert('Coordinate inviate alla centrale!')" style="font-size:12px;">Segnala Emergenza</button>
-    <button onclick="location.reload()" style="font-size:12px;">Reset Mappa</button>
+    <button onclick="location.reload()" style="font-size:12px;">Aggiorna Dati</button>
+    <button onclick="resetRimossi()" style="font-size:12px; background:#bdc3c7;">Ripristina Segnalazioni Eliminate</button>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. Inizializzazione Mappa
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 2. FUNZIONE AUTENTICAZIONE
-    function checkAuth() {
-        const code = document.getElementById('operator-code').value;
-        const SECRET_CODE = "GABRIELE2024"; // Sostituisci "GABRIELE2024" con la tua password!
+    let isLogged = false;
+    let puntiRimossi = JSON.parse(localStorage.getItem('puntiRimossi')) || [];
+    let markersLayer = L.layerGroup().addTo(map);
 
-        if (code === SECRET_CODE) {
+    function checkAuth() {
+        if (document.getElementById('operator-code').value === "GABRIELE2024") {
+            isLogged = true;
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('user-logged').classList.remove('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
-            document.getElementById('map').style.height = "calc(100vh - 100px)";
-            map.invalidateSize();
+            loadNasaData();
             alert("Accesso Autorizzato.");
-        } else {
-            alert("Codice Errato.");
-        }
+        } else { alert("Codice Errato."); }
     }
 
-    // 3. LOGICA COLORI NASA
     function getColor(temp) {
-        return temp > 325 ? '#d73027' : // Rosso
-               temp > 315 ? '#f46d43' : // Arancione
-               temp > 305 ? '#fdae61' : // Giallo
-                            '#fee08b';   // Chiaro
+        return temp > 325 ? '#d73027' : temp > 315 ? '#f46d43' : temp > 305 ? '#fdae61' : '#fee08b';
     }
 
-    // 4. CARICAMENTO DATI
-async function loadNasaData() {
+    async function loadNasaData() {
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
         const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
         
-        // --- LISTA NERA INDUSTRIALE POTENZIATA ---
-        const raffinerie = [
-            {lat: 40.48, lon: 17.21}, // Area Taranto (ILVA/Raffineria)
-            {lat: 37.15, lon: 15.19}, // Priolo/Augusta
-            {lat: 37.06, lon: 14.23}, // Gela
-            {lat: 45.45, lon: 12.24}, // Marghera
-            {lat: 43.58, lon: 10.34}, // Livorno
-            {lat: 38.20, lon: 15.24}, // Milazzo
-            {lat: 44.91, lon: 8.83},  // Sannazzaro de' Burgondi
-            {lat: 42.10, lon: 11.78}  // Civitavecchia (Centrale)
-            {lat: 40.67, lon: 16.63}, // Falso positivo Matera (Trasanello)
-        ];
-
         try {
             const res = await fetch(url);
             const csv = await res.text();
             const lines = csv.split('\n').filter(l => l.trim().length > 0).slice(1);
             
-            let italianFires = 0;
+            markersLayer.clearLayers();
+            let count = 0;
+
             lines.forEach(line => {
                 const c = line.split(',');
-                if(c.length > 2) {
-                    const lat = parseFloat(c[0]);
-                    const lon = parseFloat(c[1]);
+                const lat = parseFloat(c[0]), lon = parseFloat(c[1]), bright = parseFloat(c[2]);
+                const idPunto = `${lat}_${lon}`;
 
-                    // 1. Filtro Confini Italia
-                    let isItaly = false;
-                    if (lat > 39.0 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
-                        if (!(lat > 42.0 && lon > 14.5)) isItaly = true;
-                    } else if (lat > 36.5 && lat <= 39.0 && lon > 12.0 && lon < 18.5) {
-                        isItaly = true;
-                    } else if (lat > 38.8 && lat < 41.5 && lon > 8.0 && lon < 10.0) {
-                        isItaly = true;
+                // Filtro Italia e Punti Rimossi
+                if (lat > 35.4 && lat < 47.1 && lon > 6.6 && lon < 18.5 && !puntiRimossi.includes(idPunto)) {
+                    count++;
+                    const col = getColor(bright);
+                    const fireIcon = L.divIcon({
+                        html: `<i class="fas fa-fire" style="color: ${col}; font-size: 22px; text-shadow: 0 0 3px black;"></i>`,
+                        className: 'custom-fire-icon', iconSize: [20, 20], iconAnchor: [10, 10]
+                    });
+
+                    let popupContent = `<b>🔥 Segnalazione</b><br>Intensità: ${bright}K`;
+                    if (isLogged) {
+                        popupContent += `<br><button class="btn-delete" onclick="rimuoviPunto('${idPunto}')">Elimina Segnalazione</button>`;
                     }
 
-                    // 2. Filtro Anti-Falsi Positivi (Tolleranza aumentata)
-                    let isIndustrial = false;
-                    raffinerie.forEach(r => {
-            const dLat = Math.abs(lat - r.lat);
-            const dLon = Math.abs(lon - r.lon);
-            if (dLat < 0.05 && dLon < 0.05) isIndustrial = true; 
-        });
-
-                    if (isItaly && !isIndustrial) {
-                        italianFires++;
-                        const bright = parseFloat(c[2]); 
-                        const col = getColor(bright);
-
-                        const fireIcon = L.divIcon({
-                            html: `<i class="fas fa-fire" style="color: ${col}; font-size: 22px; text-shadow: 0 0 3px black;"></i>`,
-                            className: 'custom-fire-icon',
-                            iconSize: [20, 20],
-                            iconAnchor: [10, 10]
-                        });
-
-                        L.marker([lat, lon], {icon: fireIcon}).addTo(map)
-                         .bindPopup(`<b>🔥 Incendio Rilevato</b><br>Potenza: ${bright}K`);
-
-                        L.circle([lat, lon], { color: col, fillColor: col, fillOpacity: 0.2, radius: 1500 }).addTo(map);
-                    }
+                    L.marker([lat, lon], {icon: fireIcon}).addTo(markersLayer).bindPopup(popupContent);
+                    L.circle([lat, lon], { color: col, fillColor: col, fillOpacity: 0.2, radius: 1500 }).addTo(markersLayer);
                 }
             });
-
-            document.getElementById('fire-count').innerText = italianFires + " focolai in Italia";
-
+            document.getElementById('fire-count').innerText = count + " focolai in Italia";
         } catch(e) { console.error(e); }
     }
 
-    // 5. AGGIUNTA LEGENDA
+    function rimuoviPunto(id) {
+        puntiRimossi.push(id);
+        localStorage.setItem('puntiRimossi', JSON.stringify(puntiRimossi));
+        loadNasaData();
+    }
+
+    function resetRimossi() {
+        puntiRimossi = [];
+        localStorage.removeItem('puntiRimossi');
+        loadNasaData();
+        alert("Tutti i punti sono stati ripristinati.");
+    }
+
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function () {
         const div = L.DomUtil.create('div', 'info legend');
-        const labels = ['Critico', 'Elevato', 'Medio', 'Basso'];
         const colors = ['#d73027', '#f46d43', '#fdae61', '#fee08b'];
+        const labels = ['Critico', 'Elevato', 'Medio', 'Basso'];
         div.innerHTML = '<b>Intensità Fuoco</b><br>';
         for (let i = 0; i < colors.length; i++) {
             div.innerHTML += `<i style="background:${colors[i]}"></i> ${labels[i]}<br>`;
