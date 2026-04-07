@@ -3,25 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centrale Operativa Incendi - Cloud Pro</title>
+    <title>Centrale Italia Unica</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        header { height: 60px; background: #2c3e50; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        #map { height: calc(100vh - 60px); width: 100%; background: #cbd2d8; }
-        .login-box input { padding: 8px; border-radius: 4px; border: none; margin-right: 5px; }
-        .login-box button { padding: 8px 15px; cursor: pointer; background: #e74c3c; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        .legend { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2); line-height: 20px; font-size: 13px; }
+        html, body { height: 100%; margin: 0; }
+        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; }
+        #map { height: calc(100vh - 60px); width: 100%; background: #222; }
+        .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; }
+        .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .legend { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; }
         .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div id="status-text">🔥 <b>CENTRALE OPERATIVA</b>: <span id="count">In attesa login</span></div>
+    <div id="stat">🇮🇹 CENTRALE ITALIA: <span id="count">Inserire Codice</span></div>
     <div id="login-section" class="login-box">
-        <input type="password" id="operator-code" placeholder="Codice">
+        <input type="password" id="operator-code" placeholder="Codice Operatore">
         <button onclick="checkAuth()">ENTRA</button>
     </div>
 </header>
@@ -45,109 +45,75 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const map = L.map('map').setView([43.5, 12.0], 7);
+    const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    const manualLayer = L.layerGroup().addTo(map);
     const nasaLayer = L.layerGroup().addTo(map);
+    const cloudLayer = L.layerGroup().addTo(map);
 
     window.checkAuth = function() {
-        const code = document.getElementById('operator-code').value;
-        if (code === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ STAFF GABRIELE</b>";
-            loadNasaData();
-            attivaCloud();
-            aggiungiLegenda();
-        } else { alert("Codice Errato"); }
+        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
+            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ STAFF ATTIVO</b>";
+            loadData();
+        } else { alert("Codice errato!"); }
     };
 
-    function attivaCloud() {
-        onSnapshot(collection(db, "segnalazioni"), (snapshot) => {
-            manualLayer.clearLayers();
-            snapshot.forEach((docSnap) => {
-                const s = docSnap.data();
-                const iconViola = L.divIcon({
-                    html: '<i class="fas fa-camera" style="color:#9b59b6; font-size:20px;"></i>',
-                    className: 'm-icon'
-                });
-                L.marker([s.lat, s.lon], {icon: iconViola}).addTo(manualLayer).bindPopup(`<b>Segnalazione Cloud</b><br>${s.desc}`);
-            });
-            aggiornaLabel();
-        });
-    }
-
-    async function loadNasaData() {
-    // Scarichiamo i dati globali delle ultime 24h (molto più stabili)
-    const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`;
-    
-    try {
-        const res = await fetch(url);
-        const csv = await res.text();
+    async function loadData() {
+        // Pulizia totale prima di iniziare
         nasaLayer.clearLayers();
         
-        const righe = csv.split('\n');
-        let contatoreItalia = 0;
+        // 1. CARICAMENTO NASA CON FILTRO CHIRURGICO
+        try {
+            const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
+            const csv = await res.text();
+            const lines = csv.split('\n');
+            let n = 0;
 
-        for (let i = 1; i < righe.length; i++) {
-            const c = righe[i].split(',');
-            if (c.length < 3) continue;
+            for (let i = 1; i < lines.length; i++) {
+                const c = lines[i].split(',');
+                if (c.length < 3) continue;
 
-            const lat = parseFloat(c[0]);
-            const lon = parseFloat(c[1]);
-            const bright = parseFloat(c[2]);
+                const lat = parseFloat(c[0]);
+                const lon = parseFloat(c[1]);
+                const bright = parseFloat(c[2]);
 
-            // --- FILTRO GEOGRAFICO RIGIDO PER L'ITALIA ---
-            // Questo blocco elimina tutto ciò che non è nel nostro "rettangolo" nazionale
-            if (lat > 35.5 && lat < 47.5 && lon > 6.5 && lon < 18.5) {
-                
-                const celsius = (bright - 273.15).toFixed(1);
-                const colore = celsius > 50 ? '#d73027' : '#fdae61';
-                
-                L.marker([lat, lon], {
-                    icon: L.divIcon({
-                        html: `<i class="fas fa-fire" style="color:${colore}; font-size:18px;"></i>`,
-                        className: 'f-icon'
-                    })
-                }).addTo(nasaLayer).bindPopup(`<b>🔥 Solo Territorio Nazionale</b><br>Temp: ${celsius}°C`);
-                
-                contatoreItalia++;
+                // FILTRO ITALIA: Solo punti dentro questi confini
+                if (lat > 35.5 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
+                    const temp = (bright - 273.15).toFixed(0);
+                    L.marker([lat, lon], {
+                        icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${temp > 50 ? 'red' : 'orange'}; font-size:16px;"></i>`, className: 'f' })
+                    }).addTo(nasaLayer).bindPopup(`Incendio Italia: ${temp}°C`);
+                    n++;
+                }
             }
-        }
-        // Aggiorniamo il titolo con il numero reale di focolai italiani
-        document.getElementById('count').innerText = `${contatoreItalia} Satelliti in Italia + ${manualLayer.getLayers().length} Cloud`;
-        
-    } catch (e) { 
-        console.error("Errore nel filtraggio nazionale"); 
-    }
-}
+            document.getElementById('count').innerText = `${n} Incendi in Italia`;
+        } catch (err) { console.error("Errore NASA"); }
 
-    function aggiornaLabel() {
-        document.getElementById('count').innerText = `${nasaLayer.getLayers().length} Satelliti + ${manualLayer.getLayers().length} Cloud`;
-    }
+        // 2. CARICAMENTO CLOUD
+        onSnapshot(collection(db, "segnalazioni"), (snap) => {
+            cloudLayer.clearLayers();
+            snap.forEach(d => {
+                const s = d.data();
+                L.marker([s.lat, s.lon], {
+                    icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c' })
+                }).addTo(cloudLayer).bindPopup(s.desc);
+            });
+        });
 
-    function aggiungiLegenda() {
-        const legend = L.control({position: 'bottomright'});
-        legend.onAdd = function () {
-            const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>LEGENDA</b><br>' +
-                '<i class="fas fa-fire" style="color:#d73027"></i> Incendio Intenso<br>' +
-                '<i class="fas fa-fire" style="color:#fdae61"></i> Focolaio Moderato<br>' +
-                '<i class="fas fa-camera" style="color:#9b59b6"></i> Segnalazione Cloud';
-            return div;
+        // Aggiungi Legenda
+        const leg = L.control({position: 'bottomright'});
+        leg.onAdd = () => {
+            const d = L.DomUtil.create('div', 'legend');
+            d.innerHTML = '<b>LEGENDA</b><br><i class="fas fa-fire" style="color:red"></i> Critico<br><i class="fas fa-fire" style="color:orange"></i> Moderato<br><i class="fas fa-camera" style="color:purple"></i> Cloud';
+            return d;
         };
-        legend.addTo(map);
+        leg.addTo(map);
     }
 
-    // Abilita l'invio cliccando sulla mappa dopo il login
     map.on('click', async (e) => {
-        const code = document.getElementById('operator-code');
-        if (!code) { // Se il login è fatto, l'elemento sparisce
-            const desc = prompt("Cosa vedi in questo punto?");
-            if (desc) {
-                await addDoc(collection(db, "segnalazioni"), {
-                    lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, ora: new Date().toLocaleString()
-                });
-            }
+        if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
+            const txt = prompt("Descrizione incendio:");
+            if (txt) await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: txt });
         }
     });
 </script>
