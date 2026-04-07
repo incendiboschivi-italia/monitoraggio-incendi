@@ -7,14 +7,13 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        html, body { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; position: relative; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
         .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; margin-right: 5px; }
         .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .login-box button:hover { background: #c0392b; }
         .legend { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; color: black; font-size: 13px; }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.9; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; }
         #stat { font-weight: bold; font-size: 1.1em; }
     </style>
 </head>
@@ -34,7 +33,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
@@ -47,30 +46,22 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    
-    // Inizializzazione Mappa centrata sull'Italia
     const map = L.map('map').setView([42.0, 12.5], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // Gestione Accesso
     window.checkAuth = function() {
         const code = document.getElementById('operator-code').value;
         if (code === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'><i class='fas fa-user-shield'></i> STAFF ATTIVO</b>";
+            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ STAFF ATTIVO</b>";
             loadNasaData();
             loadCloudData();
             addLegend();
-        } else {
-            alert("Codice Operatore Non Valido!");
-        }
+        } else { alert("Codice errato!"); }
     };
 
-    // Caricamento Dati NASA con Filtro Italia Avanzato
     async function loadNasaData() {
         try {
             const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
@@ -81,43 +72,34 @@
 
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
-                if (c.length < 3 || !c[0] || !c[1]) continue;
+                if (c.length < 3) continue;
 
                 const lat = parseFloat(c[0]);
                 const lon = parseFloat(c[1]);
                 const bright = parseFloat(c[2]);
 
-                // --- SISTEMA DI FILTRAGGIO TERRITORIALE ---
-                // Confini base allargati per Puglia e Adriatico
-                let isInside = (lat > 36.3 && lat < 47.2) && (lon > 6.5 && lon < 19.0);
+                // --- NUOVO FILTRO RESTRITTIVO EST ---
+                let isItalia = (lat > 36.5 && lat < 47.2) && (lon > 6.5 && lon < 18.5);
 
-                // Esclusioni chirurgiche per pulire lo screenshot
-                if (lat < 36.9) isInside = false; // Rimuove Tunisia
-                if (lon > 13.5 && lat > 45.6) isInside = false; // Rimuove Slovenia/Croazia Nord
-                if (lon > 17.5 && lat > 42.0) isInside = false; // Rimuove Croazia/Bosnia
-                if (lon < 9.2 && lat < 43.0 && lat > 41.0) isInside = false; // Rimuove Corsica francese
+                // Blocchi specifici per pulire le zone esterne
+                if (lon > 13.5 && lat > 45.3) isItalia = false; // Slovenia/Croazia Nord
+                if (lon > 15.0 && lat > 41.5) isItalia = false; // Croazia/Bosnia
+                if (lat < 37.5) isItalia = false; // Tunisia
+                if (lon < 9.2 && lat < 43.0 && lat > 41.2) isItalia = false; // Corsica
 
-                if (isInside) {
+                if (isItalia) {
                     const temp = (bright - 273.15).toFixed(0);
                     const color = temp > 50 ? '#d73027' : '#fdae61';
-                    
                     L.marker([lat, lon], {
-                        icon: L.divIcon({ 
-                            html: `<i class="fas fa-fire" style="color:${color}; font-size:16px; filter: drop-shadow(0 0 2px black);"></i>`, 
-                            className: 'f-icon' 
-                        })
-                    }).addTo(nasaLayer).bindPopup(`<b>🔥 Focolaio Rilevato</b><br>Temperatura: ${temp}°C<br>Territorio: Italia`);
+                        icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, className: 'f-icon' })
+                    }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Nazionale: ${temp}°C`);
                     n++;
                 }
             }
             document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { 
-            console.error("Errore NASA:", e);
-            document.getElementById('count').innerText = "Errore Collegamento NASA";
-        }
+        } catch (e) { console.error("Errore NASA"); }
     }
 
-    // Caricamento Segnalazioni dal Database Cloud
     function loadCloudData() {
         onSnapshot(collection(db, "segnalazioni"), (snap) => {
             cloudLayer.clearLayers();
@@ -125,44 +107,27 @@
                 const data = doc.data();
                 if (data.lat && data.lon) {
                     L.marker([data.lat, data.lon], {
-                        icon: L.divIcon({ 
-                            html: `<i class="fas fa-camera" style="color:#9b59b6; font-size:18px; filter: drop-shadow(0 0 2px white);"></i>`, 
-                            className: 'c-icon' 
-                        })
-                    }).addTo(cloudLayer).bindPopup(`<b>📸 Segnalazione Operatore</b><br>${data.desc || "Nessuna descrizione"}`);
+                        icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' })
+                    }).addTo(cloudLayer).bindPopup(data.desc || "Segnalazione");
                 }
             });
         });
     }
 
-    // Aggiunta Legenda alla Mappa
     function addLegend() {
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function() {
             const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>LEGENDA</b><br>' +
-                           '<i class="fas fa-fire" style="color:#d73027"></i> Critico (>50°C)<br>' +
-                           '<i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br>' +
-                           '<i class="fas fa-camera" style="color:#9b59b6"></i> Segnalazione Cloud';
+            div.innerHTML = '<b>LEGENDA</b><br><i class="fas fa-fire" style="color:#d73027"></i> Critico<br><i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br><i class="fas fa-camera" style="color:purple"></i> Cloud';
             return div;
         };
         legend.addTo(map);
     }
 
-    // Inserimento Segnalazione Manuale (Solo per STAFF)
     map.on('click', async (e) => {
         if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
-            const desc = prompt("Inserisci descrizione dell'incendio segnalato:");
-            if (desc) {
-                try {
-                    await addDoc(collection(db, "segnalazioni"), {
-                        lat: e.latlng.lat,
-                        lon: e.latlng.lng,
-                        desc: desc,
-                        timestamp: new Date()
-                    });
-                } catch (err) { alert("Errore nel salvataggio cloud."); }
-            }
+            const desc = prompt("Descrizione incendio:");
+            if (desc) { await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() }); }
         }
     });
 </script>
