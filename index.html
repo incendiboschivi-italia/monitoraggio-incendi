@@ -64,38 +64,41 @@
     };
 
     async function loadNasaData() {
-        try {
-            const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
-            const csv = await res.text();
-            const lines = csv.split('\n');
-            let n = 0;
-            nasaLayer.clearLayers();
+    try {
+        const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
+        const csv = await res.text();
+        const lines = csv.split('\n');
+        let n = 0;
+        nasaLayer.clearLayers();
 
-            for (let i = 1; i < lines.length; i++) {
-                const c = lines[i].split(',');
-                if (c.length < 3) continue;
+        for (let i = 1; i < lines.length; i++) {
+            const c = lines[i].split(',');
+            if (c.length < 3) continue;
 
-                const lat = parseFloat(c[0]);
-                const lon = parseFloat(c[1]);
-                const bright = parseFloat(c[2]);
+            const lat = parseFloat(c[0]);
+            const lon = parseFloat(c[1]);
+            const bright = parseFloat(c[2]);
 
-                // FILTRO ITALIA STRETTO: Solo se dentro i confini nazionali
-                if (lat > 36.5 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
-                    const temp = (bright - 273.15).toFixed(0);
-                    const color = temp > 50 ? '#d73027' : '#fdae61';
-                    
-                    L.marker([lat, lon], {
-                        icon: L.divIcon({ 
-                            html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, 
-                            className: 'f-icon' 
-                        })
-                    }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Italia: ${temp}°C`);
-                    n++;
-                }
+            // --- FILTRO RIGIDO: Niente sotto la Sicilia, niente sopra le Alpi, niente fuori dalle coste ---
+            const isItalia = (lat > 36.6 && lat < 47.0) && (lon > 6.7 && lon < 18.4);
+
+            if (isItalia) {
+                const temp = (bright - 273.15).toFixed(0);
+                const color = temp > 50 ? '#d73027' : '#fdae61';
+                
+                L.marker([lat, lon], {
+                    icon: L.divIcon({ 
+                        html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, 
+                        className: 'f-icon' 
+                    })
+                }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Italia: ${temp}°C`);
+                n++;
             }
-            document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { console.error("Errore NASA:", e); }
-    }
+        }
+        // Questo cambierà il numero in alto: se vedi un numero BASSO (tipo 10 o 20), allora funziona!
+        document.getElementById('count').innerText = `${n} Incendi in Italia`;
+    } catch (e) { console.error("Errore NASA"); }
+}
 
     function loadCloudData() {
         onSnapshot(collection(db, "segnalazioni"), (snap) => {
