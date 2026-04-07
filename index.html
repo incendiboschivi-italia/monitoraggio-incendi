@@ -82,7 +82,8 @@
     // 4. CARICAMENTO DATI
     async function loadNasaData() {
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
-        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
+        // Questo URL ora punta solo all'area dell'Italia (Longitudini 6-19, Latitudini 35-48)
+const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
         
         try {
             const res = await fetch(url);
