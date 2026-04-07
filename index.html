@@ -80,7 +80,7 @@
     async function loadNasaData() {
         try {
             // Versione ultra-compatibile: solo Italia, solo ultimo giorno, sensore MODIS
-            const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/ITA/1`;
+            const url = `https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/ITA/1`;
             
             const res = await fetch(url);
             console.log("Risposta NASA:", res.status);
