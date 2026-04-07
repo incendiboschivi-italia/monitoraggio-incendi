@@ -99,17 +99,11 @@ L.marker([lat, lon], {icon: fireIcon})
 
     async function loadNasaData() {
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
-        
-        // Usiamo il formato AREA (più stabile) con le coordinate dell'Italia
-        // Nord: 48, Ovest: 6, Sud: 35, Est: 19
         const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
         
         try {
             const res = await fetch(url);
-            console.log("Status NASA:", res.status);
-
-            if (!res.ok) throw new Error("Errore server: " + res.status);
-
+            if (!res.ok) throw new Error("Errore: " + res.status);
             const csv = await res.text();
             const lines = csv.split('\n').slice(1);
             
@@ -118,15 +112,22 @@ L.marker([lat, lon], {icon: fireIcon})
                 if(c.length > 2) {
                     const lat = parseFloat(c[0]);
                     const lon = parseFloat(c[1]);
-                    L.marker([lat, lon], {icon: nasaIcon})
+
+                    // --- QUI METTIAMO IL PUNTO 1 ---
+                    const fireIcon = L.divIcon({
+                        html: '<i class="fas fa-fire" style="color: #ff4500; font-size: 22px; text-shadow: 0 0 3px black;"></i>',
+                        className: 'custom-fire-icon',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+
+                    L.marker([lat, lon], {icon: fireIcon})
                      .addTo(map)
-                     .bindPopup("<b>Incendio (Satellite)</b>");
+                     .bindPopup(`<b>🔥 Incendio Satellite</b><br>Lat: ${lat}<br>Lon: ${lon}`);
                 }
             });
-            console.log("Mappa aggiornata con dati NASA!");
-        } catch(e) {
-            console.error("NASA non risponde ancora:", e.message);
-        }
+            console.log("Mappa aggiornata con icone fuoco!");
+        } catch(e) { console.error(e.message); }
     }
     loadNasaData();
 
