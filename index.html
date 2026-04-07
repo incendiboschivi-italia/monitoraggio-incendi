@@ -78,18 +78,22 @@
     const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
 
     async function loadNasaData() {
-        const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
-        // Ho aggiunto un numero casuale alla fine (?v=...) per forzare la NASA a non darti dati vecchi
-        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/ITA/1?v=${Math.random()}`;
+        // Inserisco il link già pronto con la tua chiave attiva
+        const url = "https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/6c7f29542d837e182b0bf7292cb52b99/MODIS_NRT/ITA/1";
         
         try {
             const res = await fetch(url);
-            if (!res.ok) throw new Error("Risposta server: " + res.status);
+            console.log("Status NASA:", res.status);
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.log("Dettaglio errore:", text);
+                throw new Error("Errore " + res.status);
+            }
 
             const csv = await res.text();
-            console.log("Dati ricevuti con successo!");
-
             const lines = csv.split('\n').slice(1);
+            
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
@@ -100,8 +104,9 @@
                      .bindPopup("<b>Satellite NASA</b><br>Possibile incendio");
                 }
             });
+            console.log("Mappa aggiornata!");
         } catch(e) {
-            console.error("Errore finale:", e.message);
+            console.error("Non riesco a caricare i dati:", e.message);
         }
     }
     loadNasaData();
