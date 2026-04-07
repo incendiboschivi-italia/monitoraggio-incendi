@@ -84,16 +84,16 @@ async function loadNasaData() {
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
         const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
         
-        // --- LISTA NERA INDUSTRIALE (Lat, Lon) ---
-        // Aggiungiamo le coordinate delle raffinerie più comuni
+        // --- LISTA NERA INDUSTRIALE POTENZIATA ---
         const raffinerie = [
-            {lat: 40.48, lon: 17.21, nome: "Ex-ILVA Taranto"},
-            {lat: 37.15, lon: 15.19, nome: "Raffineria Priolo"},
-            {lat: 37.06, lon: 14.23, nome: "Raffineria Gela"},
-            {lat: 45.45, lon: 12.24, nome: "Marghera"},
-            {lat: 44.91, lon: 8.83, nome: "Raffineria Sannazzaro"},
-            {lat: 43.58, lon: 10.34, nome: "Raffineria Livorno"},
-            {lat: 40.63, lon: 14.85, nome: "Zona Ind. Salerno"}
+            {lat: 40.48, lon: 17.21}, // Area Taranto (ILVA/Raffineria)
+            {lat: 37.15, lon: 15.19}, // Priolo/Augusta
+            {lat: 37.06, lon: 14.23}, // Gela
+            {lat: 45.45, lon: 12.24}, // Marghera
+            {lat: 43.58, lon: 10.34}, // Livorno
+            {lat: 38.20, lon: 15.24}, // Milazzo
+            {lat: 44.91, lon: 8.83},  // Sannazzaro de' Burgondi
+            {lat: 42.10, lon: 11.78}  // Civitavecchia (Centrale)
         ];
 
         try {
@@ -108,7 +108,7 @@ async function loadNasaData() {
                     const lat = parseFloat(c[0]);
                     const lon = parseFloat(c[1]);
 
-                    // 1. Controllo se è in Italia (Filtro che abbiamo già)
+                    // 1. Filtro Confini Italia
                     let isItaly = false;
                     if (lat > 39.0 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
                         if (!(lat > 42.0 && lon > 14.5)) isItaly = true;
@@ -118,12 +118,13 @@ async function loadNasaData() {
                         isItaly = true;
                     }
 
-                    // 2. CONTROLLO ANTI-RAFFINERIA (NOVITÀ)
+                    // 2. Filtro Anti-Falsi Positivi (Tolleranza aumentata)
                     let isIndustrial = false;
                     raffinerie.forEach(r => {
-                        // Se il punto è a meno di 2km dalla raffineria, lo ignoriamo
-                        const dist = Math.abs(lat - r.lat) + Math.abs(lon - r.lon);
-                        if (dist < 0.02) isIndustrial = true; 
+                        // Usiamo una distanza di 0.05 gradi (~5km) per coprire intere zone industriali
+                        const dLat = Math.abs(lat - r.lat);
+                        const dLon = Math.abs(lon - r.lon);
+                        if (dLat < 0.05 && dLon < 0.05) isIndustrial = true; 
                     });
 
                     if (isItaly && !isIndustrial) {
@@ -139,9 +140,9 @@ async function loadNasaData() {
                         });
 
                         L.marker([lat, lon], {icon: fireIcon}).addTo(map)
-                         .bindPopup(`<b>Dati Satellite</b><br>Intensità: ${bright}K`);
+                         .bindPopup(`<b>🔥 Incendio Rilevato</b><br>Potenza: ${bright}K`);
 
-                        L.circle([lat, lon], { color: col, fillColor: col, fillOpacity: 0.2, radius: 2000 }).addTo(map);
+                        L.circle([lat, lon], { color: col, fillColor: col, fillOpacity: 0.2, radius: 1500 }).addTo(map);
                     }
                 }
             });
