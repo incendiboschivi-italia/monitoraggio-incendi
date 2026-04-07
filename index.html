@@ -78,15 +78,13 @@
     const NASA_KEY = "23be8e2bdf02493090dfd0a9667fe3cc";
     async function loadNasaData() {
     try {
-        // Usiamo MODIS_NRT: è il più compatibile con le chiavi "Aziende"
-        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/ITA/1`;
+        // Chiediamo i dati mondiali (WLD) per essere sicuri che la chiave risponda
+        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/MODIS_NRT/WLD/1`;
         
         const res = await fetch(url);
-        
-        if (!res.ok) {
-            console.log("Status Errore:", res.status);
-            throw new Error("Il server NASA non accetta i parametri");
-        }
+        console.log("Stato risposta NASA:", res.status);
+
+        if (!res.ok) throw new Error("Chiave non ancora abilitata per query globali");
 
         const csv = await res.text();
         const lines = csv.split('\n').slice(1);
@@ -94,14 +92,17 @@
         lines.forEach(line => {
             const c = line.split(',');
             if(c.length > 2) {
-                // MODIS ha le coordinate in posizioni fisse
                 const lat = parseFloat(c[0]);
                 const lon = parseFloat(c[1]);
-                L.marker([lat, lon], {icon: nasaIcon})
-                 .addTo(map).bindPopup("<b>Satellite NASA (MODIS)</b><br>Incendio rilevato");
+                
+                // Filtriamo noi l'Italia via codice per sicurezza
+                if(lat > 35 && lat < 48 && lon > 6 && lon < 19) {
+                    L.marker([lat, lon], {icon: nasaIcon})
+                     .addTo(map).bindPopup("<b>Rilevamento NASA</b>");
+                }
             }
         });
-        console.log("Successo! Dati caricati.");
+        console.log("Dati elaborati. Se ci sono incendi in Italia, appariranno ora.");
     } catch(e) { 
         console.error("Errore NASA:", e.message); 
     }
