@@ -77,10 +77,8 @@
     }
 
     async function loadNasaData() {
-    // Coordinate chirurgiche solo per l'Italia
-    // Ovest: 6.6, Sud: 35.4, Est: 18.6, Nord: 47.1
-    const areaItalia = "6.6,35.4,18.6,47.1"; 
-    const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/${areaItalia}/1`;
+    // Scarichiamo i dati globali delle ultime 24h (molto più stabili)
+    const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`;
     
     try {
         const res = await fetch(url);
@@ -88,31 +86,38 @@
         nasaLayer.clearLayers();
         
         const righe = csv.split('\n');
+        let contatoreItalia = 0;
+
         for (let i = 1; i < righe.length; i++) {
             const c = righe[i].split(',');
-            
-            // Filtro di sicurezza: Latitudine deve essere tra 35 e 48, Longitudine tra 6 e 19
-            if (c.length >= 2) {
-                const lat = parseFloat(c[0]);
-                const lon = parseFloat(c[1]);
-                const bright = parseFloat(c[2]);
+            if (c.length < 3) continue;
 
-                if (!isNaN(lat) && !isNaN(lon) && lat > 35 && lat < 48 && lon > 6 && lon < 19) {
-                    const celsius = (bright - 273.15).toFixed(1);
-                    const colore = celsius > 50 ? '#d73027' : '#fdae61';
-                    
-                    L.marker([lat, lon], {
-                        icon: L.divIcon({
-                            html: `<i class="fas fa-fire" style="color:${colore}; font-size:18px;"></i>`,
-                            className: 'f-icon'
-                        })
-                    }).addTo(nasaLayer).bindPopup(`<b>🔥 Solo Italia</b><br>Temp: ${celsius}°C`);
-                }
+            const lat = parseFloat(c[0]);
+            const lon = parseFloat(c[1]);
+            const bright = parseFloat(c[2]);
+
+            // --- FILTRO GEOGRAFICO RIGIDO PER L'ITALIA ---
+            // Questo blocco elimina tutto ciò che non è nel nostro "rettangolo" nazionale
+            if (lat > 35.5 && lat < 47.5 && lon > 6.5 && lon < 18.5) {
+                
+                const celsius = (bright - 273.15).toFixed(1);
+                const colore = celsius > 50 ? '#d73027' : '#fdae61';
+                
+                L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: `<i class="fas fa-fire" style="color:${colore}; font-size:18px;"></i>`,
+                        className: 'f-icon'
+                    })
+                }).addTo(nasaLayer).bindPopup(`<b>🔥 Solo Territorio Nazionale</b><br>Temp: ${celsius}°C`);
+                
+                contatoreItalia++;
             }
         }
-        aggiornaLabel();
+        // Aggiorniamo il titolo con il numero reale di focolai italiani
+        document.getElementById('count').innerText = `${contatoreItalia} Satelliti in Italia + ${manualLayer.getLayers().length} Cloud`;
+        
     } catch (e) { 
-        console.error("Errore NASA"); 
+        console.error("Errore nel filtraggio nazionale"); 
     }
 }
 
