@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centrale Italia Unica</title>
+    <title>Centrale Operativa Italia</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        html, body { height: 100%; margin: 0; }
-        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; }
+        html, body { height: 100%; margin: 0; font-family: sans-serif; }
+        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; position: relative; z-index: 1000; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
-        .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; }
+        .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; margin-right: 5px; }
         .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .legend { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; }
+        .legend { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; color: black; }
         .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div id="stat">🇮🇹 CENTRALE ITALIA: <span id="count">Inserire Codice</span></div>
+    <div id="stat">🇮🇹 CENTRALE ITALIA: <span id="count">In attesa login</span></div>
     <div id="login-section" class="login-box">
         <input type="password" id="operator-code" placeholder="Codice Operatore">
         <button onclick="checkAuth()">ENTRA</button>
@@ -52,74 +52,92 @@
     const cloudLayer = L.layerGroup().addTo(map);
 
     window.checkAuth = function() {
-        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
+        const code = document.getElementById('operator-code').value;
+        if (code === "GABRIELE_STAFF") {
             document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ STAFF ATTIVO</b>";
-            loadData();
-        } else { alert("Codice errato!"); }
+            loadNasaData();
+            loadCloudData();
+            addLegend();
+        } else {
+            alert("Codice errato!");
+        }
     };
 
-    async function loadData() {
-        nasaLayer.clearLayers();
+    async function loadNasaData() {
         try {
             const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
             const csv = await res.text();
             const lines = csv.split('\n');
             let n = 0;
+            nasaLayer.clearLayers();
 
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
-                // 1. PROTEZIONE TOTALE: Se la riga è incompleta, saltala subito (toglie l'errore rosso)
-                if (c.length < 3 || !c[0] || !c[1]) continue;
+                if (c.length < 3) continue;
 
                 const lat = parseFloat(c[0]);
                 const lon = parseFloat(c[1]);
                 const bright = parseFloat(c[2]);
 
-                // 2. FILTRO CHIRURGICO (Solo Italia, niente Croazia o Tunisia)
-                // Nord: 47.1, Sud: 36.5, Ovest: 6.6, Est: 18.5
+                // FILTRO ITALIA STRETTO: Solo se dentro i confini nazionali
                 if (lat > 36.5 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
                     const temp = (bright - 273.15).toFixed(0);
+                    const color = temp > 50 ? '#d73027' : '#fdae61';
+                    
                     L.marker([lat, lon], {
                         icon: L.divIcon({ 
-                            html: `<i class="fas fa-fire" style="color:${temp > 50 ? '#d73027' : '#fdae61'}; font-size:16px;"></i>`, 
-                            className: 'f' 
+                            html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, 
+                            className: 'f-icon' 
                         })
-                    }).addTo(nasaLayer).bindPopup(`Incendio Italia: ${temp}°C`);
+                    }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Italia: ${temp}°C`);
                     n++;
                 }
             }
             document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (err) { 
-            console.error("Errore caricamento"); 
-        }
+        } catch (e) { console.error("Errore NASA:", e); }
+    }
 
-        // CARICAMENTO CLOUD (Database Google)
+    function loadCloudData() {
         onSnapshot(collection(db, "segnalazioni"), (snap) => {
             cloudLayer.clearLayers();
-            snap.forEach(d => {
-                const s = d.data();
-                if(s.lat && s.lon) { // Altra protezione per il cloud
-                   L.marker([s.lat, s.lon], {
-                       icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c' })
-                   }).addTo(cloudLayer).bindPopup(s.desc);
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (data.lat && data.lon) {
+                    L.marker([data.lat, data.lon], {
+                        icon: L.divIcon({ 
+                            html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, 
+                            className: 'c-icon' 
+                        })
+                    }).addTo(cloudLayer).bindPopup(data.desc || "Segnalazione");
                 }
             });
         });
     }
-        // Aggiungi Legenda
-        const leg = L.control({position: 'bottomright'});
-        leg.onAdd = () => {
-            const d = L.DomUtil.create('div', 'legend');
-            d.innerHTML = '<b>LEGENDA</b><br><i class="fas fa-fire" style="color:red"></i> Critico<br><i class="fas fa-fire" style="color:orange"></i> Moderato<br><i class="fas fa-camera" style="color:purple"></i> Cloud';
-            return d;
+
+    function addLegend() {
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function() {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = '<b>LEGENDA</b><br>' +
+                           '<i class="fas fa-fire" style="color:#d73027"></i> Critico (>50°C)<br>' +
+                           '<i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br>' +
+                           '<i class="fas fa-camera" style="color:purple"></i> Segnalazione Cloud';
+            return div;
         };
-        leg.addTo(map);
+        legend.addTo(map);
     }
 
     map.on('click', async (e) => {
         if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
-            const txt = prompt("Descrizione incendio:");
-            if (txt) await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: txt });
+            const desc = prompt("Inserisci descrizione incendio:");
+            if (desc) {
+                await addDoc(collection(db, "segnalazioni"), {
+                    lat: e.latlng.lat,
+                    lon: e.latlng.lng,
+                    desc: desc,
+                    timestamp: new Date()
+                });
+            }
         }
     });
 </script>
