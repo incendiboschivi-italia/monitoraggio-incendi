@@ -4,18 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Centrale Operativa Italia - PRO</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
-        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; position: relative; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.5); border-bottom: 1px solid #333; }
+        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.5); border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
         .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; margin-right: 5px; width: 150px; }
         .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .legend { background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; color: black; font-size: 13px; font-weight: bold; }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; }
+        .login-box button:hover { background: #c0392b; }
+        
+        /* Stili Legenda */
+        .legend { background: rgba(255, 255, 255, 0.95); padding: 12px; border-radius: 10px; color: black; font-size: 13px; line-height: 20px; box-shadow: 0 0 15px rgba(0,0,0,0.6); }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 10px; text-align: center; }
+        
+        /* Stili Header */
         #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
-        .staff-tag { color: #2ecc71; font-weight: bold; }
+        .staff-tag { color: #2ecc71; font-weight: bold; text-transform: uppercase; }
+        
+        /* Stili Icofigurate */
+        .f-icon { display: flex; align-items: center; justify-content: center; background: transparent; }
     </style>
 </head>
 <body>
@@ -30,12 +38,14 @@
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <script type="module">
+    // Importazione moduli Firebase
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+    // Configurazione Firebase (Lavoro di ieri)
     const firebaseConfig = {
         apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
         authDomain: "monitoraggioincendi-41f5f.firebaseapp.com",
@@ -45,44 +55,52 @@
         appId: "1:63942195354:web:cc5bb978858676c6748723"
     };
 
+    // Inizializzazione Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
+    // Inizializzazione Mappa Leaflet (Centrata su Roma)
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+    // Livelli Mappa separati per NASA e Database Cloud
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // --- ARCHIVIO COMPLETO FALSI POSITIVI (Analisi di tutti i tuoi allegati) ---
+    // --- ARCHIVIO FALSI POSITIVI (Analisi screenshot 7b4xxx) ---
     const blackList = [
-        {lat: 37.75, lon: 14.99, name: "Etna"}, //
-        {lat: 38.79, lon: 15.21, name: "Stromboli"},
-        {lat: 40.48, lon: 17.22, name: "Taranto (Ilva)"}, //
-        {lat: 37.13, lon: 15.18, name: "Priolo/Augusta"}, //
-        {lat: 45.45, lon: 12.23, name: "Porto Marghera"}, //
-        {lat: 44.91, lon: 8.82,  name: "Sannazzaro"}, 
-        {lat: 43.58, lon: 10.33, name: "Livorno Raff."},
-        {lat: 42.92, lon: 10.53, name: "Piombino Acc."},
-        {lat: 37.05, lon: 14.25, name: "Gela Raff."},
-        {lat: 38.20, lon: 15.24, name: "Milazzo Raff."}
+        {lat: 37.75, lon: 14.99, type: "volcano", name: "Etna"}, //
+        {lat: 38.79, lon: 15.21, type: "volcano", name: "Stromboli"},
+        {lat: 40.48, lon: 17.22, type: "industry", name: "Taranto (Ex Ilva)"}, //
+        {lat: 37.13, lon: 15.18, type: "industry", name: "Priolo/Augusta (Raffineria)"}, //
+        {lat: 45.45, lon: 12.23, type: "industry", name: "Porto Marghera (Polo Ind.)"}, //
+        {lat: 44.91, lon: 8.82,  type: "industry", name: "Sannazzaro de' Burgondi (Raff.)"}, 
+        {lat: 43.58, lon: 10.33, type: "industry", name: "Livorno (Raffineria)"},
+        {lat: 42.92, lon: 10.53, type: "industry", name: "Piombino (Acciaieria)"},
+        {lat: 37.05, lon: 14.25, type: "industry", name: "Gela (Industria)"},
+        {lat: 38.20, lon: 15.24, type: "industry", name: "Milazzo (Raffineria)"}
     ];
 
+    // Gestione Autenticazione (Sblocco totale su GABRIELE_STAFF)
     window.checkAuth = function() {
         if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<span class='staff-tag'>⭐ STAFF ATTIVO</span>";
+            document.getElementById('login-section').innerHTML = "<span class='staff-tag'>⭐ OPERATIVO</span>";
             loadNasaData();
-            loadCloudData(); // Re-inserito caricamento segnalazioni manuali
+            loadCloudData(); // Re-inserito caricamento database manuale (Cloud ieri)
             addLegend();
-        } else { alert("Codice Operatore errato!"); }
+        } else { alert("Codice Operatore errato o non attivo!"); }
     };
 
+    // Caricamento Dati NASA con Filtro Italia e Falsi Positivi
     async function loadNasaData() {
         try {
+            // Fetch dati CSV tramite CorsProxy per aggirare blocchi browser
             const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
             const csv = await res.text();
             const lines = csv.split('\n');
-            let n = 0;
+            let nReal = 0;
+            let nVolcano = 0;
+            let nIndustry = 0;
             nasaLayer.clearLayers();
 
             for (let i = 1; i < lines.length; i++) {
@@ -91,67 +109,90 @@
 
                 const lat = parseFloat(c[0]);
                 const lon = parseFloat(c[1]);
-                const bright = parseFloat(c[2]);
+                const temp = (parseFloat(c[2]) - 273.15).toFixed(0);
 
-                // 1. FILTRI CONFINI DRASTICI (Via Svizzera, Balcani, Corsica)
-                let isValid = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
-                
-                if (lat > 46.55) isValid = false; // Svizzera
-                if (lon > 13.6 && lat > 42.0) isValid = false; // Balcani
-                if (lon < 9.7 && lat > 41.3 && lat < 43.1) isValid = false; // Corsica
-                if (lat < 37.1) isValid = false; // Tunisia
+                // 1. FILTRI CONFINI DRASTICI (Lavoro di ieri: Via Svizzera, Balcani, Corsica, Tunisia)
+                let inArea = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
+                if (lat > 46.55) inArea = false; // Svizzera Nord
+                if (lon > 13.6 && lat > 42.0) inArea = false; // Balcani/Croazia Nord
+                if (lon < 9.7 && lat > 41.3 && lat < 43.1) inArea = false; // Corsica
+                if (lat < 37.1) inArea = false; // Tunisia
 
-                // 2. FILTRO FALSI POSITIVI INDUSTRIALI E VULCANI
-                blackList.forEach(point => {
-                    const d = Math.sqrt(Math.pow(lat - point.lat, 2) + Math.pow(lon - point.lon, 2));
-                    if (d < 0.05) isValid = false; 
-                });
+                if (inArea) {
+                    let isKnownSite = false;
+                    let siteInfo = "";
+                    let iconHtml = "";
 
-                if (isValid) {
-                    const temp = (bright - 273.15).toFixed(0);
-                    const color = temp > 60 ? '#d73027' : '#fdae61';
+                    // 2. ANALISI CONTRASSEGNO FALSO POSITIVO (Richiesta di oggi)
+                    blackList.forEach(point => {
+                        const d = Math.sqrt(Math.pow(lat - point.lat, 2) + Math.pow(lon - point.lon, 2));
+                        // Se è entro ~6km da un polo noto, lo consideriamo falso
+                        if (d < 0.05) { 
+                            isKnownSite = true;
+                            siteInfo = point.name;
+                            iconHtml = point.type === "volcano" 
+                                ? `<i class="fas fa-volcano" style="color:#e67e22; font-size:16px;"></i>` // Icona Vulcano - Arancione
+                                : `<i class="fas fa-gear" style="color:#3498db; font-size:16px;"></i>`;   // Icona Ingranaggio - Blu
+                        }
+                    });
+
+                    // 3. GESTIONE INCENDI BOSCHIVI (Se non è un sito noto)
+                    if (!isKnownSite) {
+                        iconHtml = `<i class="fas fa-fire" style="color:${temp > 60 ? '#d73027' : '#fdae61'}; font-size:16px;"></i>`;
+                        nReal++;
+                    }
+
+                    // Disegno del marker sulla mappa con popup differenziato
                     L.marker([lat, lon], {
-                        icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, className: 'f-icon' })
-                    }).addTo(nasaLayer).bindPopup(`🔥 Focolaio: ${temp}°C`);
-                    n++;
+                        icon: L.divIcon({ html: iconHtml, className: 'f-icon' })
+                    }).addTo(nasaLayer).bindPopup(
+                        isKnownSite 
+                            ? `<b>SITO NOTO (Emissioni):</b><br>${siteInfo}` 
+                            : `<b>INCENDIO BOSCHIVO:</b><br>Temperatura: ${temp}°C<br>Territorio: Italia`
+                    );
                 }
             }
-            document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { console.error("Errore NASA"); }
+            // Aggiornamento contatore nell'header
+            document.getElementById('count').innerText = `${nReal} Incendi Boschivi Boschivi in Italia`;
+        } catch (e) { console.error("Errore caricamento dati satellitari"); }
     }
 
+    // Caricamento Segnalazioni Manuali (Lavoro di ieri, ora re-inserito)
     function loadCloudData() {
         const q = query(collection(db, "segnalazioni"), orderBy("timestamp", "desc"));
         onSnapshot(q, (snap) => {
             cloudLayer.clearLayers();
             snap.forEach(doc => {
-                const data = doc.data();
-                if (data.lat && data.lon) {
-                    L.marker([data.lat, data.lon], {
+                const d = doc.data();
+                if (d.lat && d.lon) {
+                    L.marker([d.lat, d.lon], {
                         icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' })
-                    }).addTo(cloudLayer).bindPopup(`<b>Segnalazione Staff:</b><br>${data.desc}`);
+                    }).addTo(cloudLayer).bindPopup(`<b>Segnalazione Staff (Cloud):</b><br>${d.desc}`);
                 }
             });
         });
     }
 
+    // Aggiunta Legenda Operativa Integrata alla Mappa
     function addLegend() {
-        if (document.querySelector('.legend')) return;
+        if (document.querySelector('.legend')) return; // Evita duplicazioni
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function() {
             const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>LEGENDA</b><br>' +
-                            '<i class="fas fa-fire" style="color:#d73027"></i> Critico<br>' +
-                            '<i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br>' +
-                            '<i class="fas fa-camera" style="color:purple"></i> Segnalazione Cloud';
+            div.innerHTML = '<b>LEGENDA OPERATIVA</b><br>' +
+                            '<i class="fas fa-fire" style="color:#d73027"></i> Incendio Boschivo (Pericolo)<br>' +
+                            '<i class="fas fa-gear" style="color:#3498db"></i> Sito Industriale (Falso Post.)<br>' +
+                            '<i class="fas fa-volcano" style="color:#e67e22"></i> Attività Vulcanica (Falso Post.)<br>' +
+                            '<i class="fas fa-camera" style="color:purple"></i> Segnalazione Staff (Cloud)';
             return div;
         };
         legend.addTo(map);
     }
 
+    // Gestione Segnalazione Manuale al Click (Solo se loggati)
     map.on('click', async (e) => {
-        if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
-            const desc = prompt("Descrizione incendio:");
+        if (document.getElementById('login-section').innerHTML.includes("OPERATIVO")) {
+            const desc = prompt("Inserisci descrizione dell'incendio/evento da segnalare:");
             if (desc) { 
                 await addDoc(collection(db, "segnalazioni"), { 
                     lat: e.latlng.lat, 
