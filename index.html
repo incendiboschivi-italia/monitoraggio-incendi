@@ -77,29 +77,33 @@
 // --- 3. DATI NASA (SATELLITE) ---
     const NASA_KEY = "23be8e2bdf02493090dfd0a9667fe3cc";
     async function loadNasaData() {
-        try {
-            // Definiamo un rettangolo che copre l'Italia (Longitudine e Latitudine)
-            const areaItalia = "6,35,19,48"; 
-            const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP/${areaItalia}/1`;
-            
-            const res = await fetch(url);
-            if (!res.ok) throw new Error("Chiave non abilitata per questo servizio");
-
-            const csv = await res.text();
-            const lines = csv.split('\n').slice(1);
-            
-            lines.forEach(line => {
-                const c = line.split(',');
-                if(c.length > 2) {
-                    L.marker([parseFloat(c[1]), parseFloat(c[2])], {icon: nasaIcon})
-                     .addTo(map).bindPopup("<b>Satellite NASA</b><br>Rilevato calore intenso");
-                }
-            });
-            console.log("Dati NASA caricati correttamente!");
-        } catch(e) { 
-            console.error("Errore NASA:", e); 
+    try {
+        // Usiamo ITA (Italia) che è il parametro più stabile per la tua chiave
+        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/1`;
+        
+        const res = await fetch(url);
+        
+        // Se il server risponde ancora male, lo scriviamo chiaramente
+        if (!res.ok) {
+            console.log("Stato risposta NASA:", res.status);
+            throw new Error("Il server NASA sta ancora configurando la tua chiave");
         }
+
+        const csv = await res.text();
+        const lines = csv.split('\n').slice(1);
+        
+        lines.forEach(line => {
+            const c = line.split(',');
+            if(c.length > 2) {
+                L.marker([parseFloat(c[1]), parseFloat(c[2])], {icon: nasaIcon})
+                 .addTo(map).bindPopup("<b>Satellite NASA</b><br>Incendio rilevato");
+            }
+        });
+        console.log("Successo! Dati NASA visualizzati.");
+    } catch(e) { 
+        console.error("Errore NASA:", e.message); 
     }
+}
     loadNasaData();
 
     // --- AUTENTICAZIONE ---
