@@ -53,6 +53,13 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+// Funzione per scegliere il colore in base alla temperatura (Bright_t31)
+    function getColor(temp) {
+        return temp > 320 ? '#d73027' : // Rosso (Molto caldo)
+               temp > 310 ? '#f46d43' : // Arancione (Caldo)
+               temp > 300 ? '#fdae61' : // Giallo-Arancio
+                            '#fee08b';   // Giallo (Moderato)
+    }
 
     async function loadNasaData() {
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
@@ -62,46 +69,53 @@
             const res = await fetch(url);
             if (!res.ok) throw new Error("Errore: " + res.status);
             const csv = await res.text();
-            const lines = csv.split('\n').slice(1);
+            const lines = csv.split('\n').filter(l => l.trim().length > 0).slice(1);
             
-            // --- NOVITÀ: Conta e mostra il totale ---
-            const totalFires = lines.filter(line => line.trim().length > 0).length;
-            document.getElementById('fire-count').innerText = totalFires + " focolai rilevati";
-            // ---------------------------------------
+            document.getElementById('fire-count').innerText = lines.length + " focolai rilevati";
 
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
                     const lat = parseFloat(c[0]);
                     const lon = parseFloat(c[1]);
+                    const temp = parseFloat(c[2]); // Bright_ti4 o ti5
+                    const color = getColor(temp);
 
-                    // Crea l'icona della fiamma
                     const fireIcon = L.divIcon({
-                        html: '<i class="fas fa-fire" style="color: #ff4500; font-size: 22px; text-shadow: 0 0 3px black;"></i>',
+                        html: `<i class="fas fa-fire" style="color: ${color}; font-size: 22px; text-shadow: 0 0 3px black;"></i>`,
                         className: 'custom-fire-icon',
                         iconSize: [20, 20],
                         iconAnchor: [10, 10]
                     });
 
-                    // Aggiungi il marker (fiammella)
                     L.marker([lat, lon], {icon: fireIcon})
                      .addTo(map)
-                     .bindPopup(`<b>🔥 Incendio Satellite</b><br>Lat: ${lat}<br>Lon: ${lon}`);
+                     .bindPopup(`<b>🔥 Incendio</b><br>Intensità: ${temp}K<br>Lat: ${lat}`);
 
-                    // Aggiungi il cerchio di calore (Punto 2)
                     L.circle([lat, lon], {
-                        color: 'red',
-                        fillColor: '#f03',
-                        fillOpacity: 0.2,
-                        radius: 1500 
+                        color: color, fillColor: color, fillOpacity: 0.3, radius: 2000 
                     }).addTo(map);
                 }
             });
-            console.log("Mappa aggiornata con icone fuoco!");
-        } catch(e) { console.error("Errore NASA:", e.message); }
+        } catch(e) { console.error(e.message); }
     }
 
-    // Avvia il caricamento
+    // --- AGGIUNGIAMO LA LEGENDA ALLA MAPPA ---
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'info legend');
+        const grades = [0, 300, 310, 320];
+        const labels = ['Moderato', 'Medio', 'Elevato', 'Critico'];
+        const colors = ['#fee08b', '#fdae61', '#f46d43', '#d73027'];
+
+        div.innerHTML = '<b>Intensità</b><br>';
+        for (let i = 0; i < grades.length; i++) {
+            div.innerHTML += '<i style="background:' + colors[i] + '"></i> ' + labels[i] + '<br>';
+        }
+        return div;
+    };
+    legend.addTo(map);
+
     loadNasaData();
 </script>
 </body>
