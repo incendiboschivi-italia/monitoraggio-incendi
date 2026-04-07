@@ -78,35 +78,33 @@
     const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
 
     async function loadNasaData() {
-        // Inserisco il link già pronto con la tua chiave attiva
-        const url = "https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/6c7f29542d837e182b0bf7292cb52b99/MODIS_NRT/ITA/1";
+        // Questa è la tua chiave NUOVA già inserita
+        const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
+        
+        // Ho corretto il link: usiamo VIIRS_SNPP_NRT che è il sensore più moderno e attivo
+        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP_NRT/ITA/1`;
         
         try {
             const res = await fetch(url);
-            console.log("Status NASA:", res.status);
-
-            if (!res.ok) {
-                const text = await res.text();
-                console.log("Dettaglio errore:", text);
-                throw new Error("Errore " + res.status);
-            }
+            if (!res.ok) throw new Error("Stato: " + res.status);
 
             const csv = await res.text();
+            console.log("Dati NASA ricevuti!");
+
             const lines = csv.split('\n').slice(1);
-            
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
+                    // Per il sensore VIIRS la latitudine è colonna 0, longitudine colonna 1
                     const lat = parseFloat(c[0]);
                     const lon = parseFloat(c[1]);
                     L.marker([lat, lon], {icon: nasaIcon})
                      .addTo(map)
-                     .bindPopup("<b>Satellite NASA</b><br>Possibile incendio");
+                     .bindPopup("<b>Satellite NASA</b><br>Incendio rilevato");
                 }
             });
-            console.log("Mappa aggiornata!");
         } catch(e) {
-            console.error("Non riesco a caricare i dati:", e.message);
+            console.error("Errore NASA:", e.message);
         }
     }
     loadNasaData();
