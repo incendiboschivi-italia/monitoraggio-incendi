@@ -85,15 +85,29 @@
                     const idPunto = `${lat}_${lon}`;
 
                     let isItaly = false;
-                    // Filtro Italia Chirurugico (Taglia Istria, Slovenia e Corsica)
-                    if (lat >= 45.4 && lat <= 47.1 && lon >= 6.6 && lon <= 13.6) isItaly = true;
-                    else if (lat >= 44.0 && lat < 45.4 && lon >= 6.6 && lon <= 13.8) isItaly = true;
-                    else if (lat >= 39.5 && lat < 44.0 && lon >= 7.2 && lon <= 15.5) {
-                        isItaly = true;
-                        if (lon < 9.6 && lat > 41.3 && lat < 43.1) isItaly = false; // Rimuove Corsica
+                    
+                    // --- FILTRO GEOGRAFICO ULTRA-PRECISO ---
+                    // 1. Nord-Est (Taglio Istria/Slovenia a 13.5°)
+                    if (lat >= 44.8 && lat <= 47.1) {
+                        if (lon >= 6.6 && lon <= 13.5) isItaly = true;
                     }
-                    else if (lat >= 36.5 && lat < 39.5 && lon >= 12.0 && lon <= 18.8) isItaly = true;
-                    else if (lat >= 38.8 && lat <= 41.3 && lon >= 8.0 && lon <= 10.0) isItaly = true;
+                    // 2. Nord-Ovest e Centro
+                    else if (lat >= 44.0 && lat < 44.8) {
+                        if (lon >= 6.6 && lon <= 13.8) isItaly = true;
+                    }
+                    // 3. Centro e Mare (Rimuove Corsica con blocco specifico)
+                    else if (lat >= 39.5 && lat < 44.0) {
+                        isItaly = (lon >= 7.2 && lon <= 15.5);
+                        if (lon < 9.6 && lat > 41.3 && lat < 43.1) isItaly = false;
+                    }
+                    // 4. Sud e Sicilia
+                    else if (lat >= 36.5 && lat < 39.5) {
+                        if (lon >= 12.0 && lon <= 18.8) isItaly = true;
+                    }
+                    // 5. Sardegna
+                    if (lat >= 38.8 && lat <= 41.3 && lon >= 8.0 && lon <= 10.0) {
+                        isItaly = true;
+                    }
 
                     if (isItaly && !puntiRimossi.includes(idPunto)) {
                         count++;
@@ -114,7 +128,7 @@
                 }
             });
             document.getElementById('fire-count').innerText = count + " focolai in Italia";
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error("Errore caricamento dati:", e); }
     }
 
     function rimuoviPunto(id) {
