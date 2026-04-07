@@ -42,12 +42,21 @@
 <body>
 
 <header>
-    <div>🔥 INCENDI ITALIA LIVE: <span id="fire-count" style="font-weight:bold; color:#ffdd59;">Caricamento...</span></div>
-    <div class="login-box">
-        <input type="text" placeholder="Email Volontario">
-        <input type="password" placeholder="Password">
-        <button>Accedi</button>
+    <div>🔥 INCENDI LIVE: <span id="fire-count" style="color:#ffdd59; font-weight:bold;">...</span></div>
+    <div class="login-box" id="login-section">
+        <input type="password" id="operator-code" placeholder="Codice Operatore">
+        <button onclick="checkAuth()">Verifica</button>
     </div>
+    <div id="user-logged" class="hidden" style="color:#2ecc71; font-weight:bold;">
+        ✅ VOLONTARIO ATTIVO
+    </div>
+</header>
+
+<div id="admin-panel" class="hidden">
+    <strong>Azioni Rapide:</strong>
+    <button onclick="alert('Funzione Segnala Incendio in arrivo!')">Segnala Nuovo Incendio</button>
+    <button onclick="location.reload()">Aggiorna Dati</button>
+</div>
 </header>
 
 <div id="map"></div>
