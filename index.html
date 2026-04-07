@@ -78,33 +78,34 @@
     const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
 
     async function loadNasaData() {
-        // Questa è la tua chiave NUOVA già inserita
         const NASA_KEY = "6c7f29542d837e182b0bf7292cb52b99";
         
-        // Ho corretto il link: usiamo VIIRS_SNPP_NRT che è il sensore più moderno e attivo
-        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP_NRT/ITA/1`;
+        // Usiamo il formato AREA (più stabile) con le coordinate dell'Italia
+        // Nord: 48, Ovest: 6, Sud: 35, Est: 19
+        const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP_NRT/6,35,19,48/1`;
         
         try {
             const res = await fetch(url);
-            if (!res.ok) throw new Error("Stato: " + res.status);
+            console.log("Status NASA:", res.status);
+
+            if (!res.ok) throw new Error("Errore server: " + res.status);
 
             const csv = await res.text();
-            console.log("Dati NASA ricevuti!");
-
             const lines = csv.split('\n').slice(1);
+            
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
-                    // Per il sensore VIIRS la latitudine è colonna 0, longitudine colonna 1
                     const lat = parseFloat(c[0]);
                     const lon = parseFloat(c[1]);
                     L.marker([lat, lon], {icon: nasaIcon})
                      .addTo(map)
-                     .bindPopup("<b>Satellite NASA</b><br>Incendio rilevato");
+                     .bindPopup("<b>Incendio (Satellite)</b>");
                 }
             });
+            console.log("Mappa aggiornata con dati NASA!");
         } catch(e) {
-            console.error("Errore NASA:", e.message);
+            console.error("NASA non risponde ancora:", e.message);
         }
     }
     loadNasaData();
