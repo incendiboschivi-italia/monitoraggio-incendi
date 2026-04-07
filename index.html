@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoraggio Incendi</title>
+    <title>Centrale Operativa Italia - PRO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -47,20 +47,23 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // --- LISTA FALSI POSITIVI INDUSTRIALI (Raffinerie/Acciaierie) ---
-    const industrialZones = [
-        {lat: 40.48, lon: 17.22, name: "Ilva Taranto"},
-        {lat: 37.13, lon: 15.18, name: "Priolo/Augusta"},
+    // --- ARCHIVIO FALSI POSITIVI (Lavoro di oggi) ---
+    const industrialHotspots = [
+        {lat: 40.48, lon: 17.22, name: "Ex Ilva Taranto"},
+        {lat: 37.13, lon: 15.18, name: "Polo Industriale Priolo"},
         {lat: 45.45, lon: 12.23, name: "Porto Marghera"},
-        {lat: 42.92, lon: 10.53, name: "Piombino"},
-        {lat: 43.58, lon: 10.33, name: "Livorno Raffineria"},
-        {lat: 44.91, lon: 8.82, name: "Sannazzaro de' Burgondi"}
+        {lat: 42.92, lon: 10.53, name: "Acciaierie Piombino"},
+        {lat: 43.58, lon: 10.33, name: "Raffineria Livorno"},
+        {lat: 44.91, lon: 8.82, name: "Raffineria Sannazzaro"},
+        {lat: 38.20, lon: 15.24, name: "Raffineria Milazzo"},
+        {lat: 37.05, lon: 14.25, name: "Raffineria Gela"}
     ];
 
     window.checkAuth = function() {
@@ -88,18 +91,19 @@
                 const lon = parseFloat(c[1]);
                 const bright = parseFloat(c[2]);
 
-                // 1. FILTRI CONFINI NAZIONALI
+                // 1. FILTRO GEOGRAFICO (Confini Nazionali)
                 let isValid = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
-                
-                if (lat > 46.55) isValid = false; // No Svizzera
-                if (lon > 13.6 && lat > 42.0) isValid = false; // No Balcani
-                if (lon < 9.7 && lat > 41.3 && lat < 43.1) isValid = false; // No Corsica
-                if (lat < 37.1) isValid = false; // No Tunisia
 
-                // 2. FILTRO FALSI POSITIVI INDUSTRIALI
-                industrialZones.forEach(zone => {
-                    const dist = Math.sqrt(Math.pow(lat - zone.lat, 2) + Math.pow(lon - zone.lon, 2));
-                    if (dist < 0.05) isValid = false; // Se è troppo vicino a una raffineria, lo scartiamo
+                // Blocchi Esclusione Estero
+                if (lat > 46.55) isValid = false; // Svizzera
+                if (lon > 13.6 && lat > 42.0) isValid = false; // Balcani
+                if (lon < 9.7 && lat > 41.3 && lat < 43.1) isValid = false; // Corsica
+                if (lat < 37.1) isValid = false; // Tunisia
+
+                // 2. FILTRO FALSI POSITIVI (Aree Industriali)
+                industrialHotspots.forEach(spot => {
+                    const distance = Math.sqrt(Math.pow(lat - spot.lat, 2) + Math.pow(lon - spot.lon, 2));
+                    if (distance < 0.04) isValid = false; 
                 });
 
                 if (isValid) {
@@ -112,7 +116,7 @@
                 }
             }
             document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { console.error("Errore"); }
+        } catch (e) { console.error("Errore dati NASA"); }
     }
 
     function loadCloudData() {
