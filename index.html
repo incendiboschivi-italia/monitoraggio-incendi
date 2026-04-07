@@ -7,20 +7,21 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; position: relative; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
+        header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; position: relative; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.5); border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
-        .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; margin-right: 5px; }
+        .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; margin-right: 5px; width: 150px; }
         .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .legend { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; color: black; font-size: 13px; }
+        .legend { background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 20px; color: black; font-size: 13px; font-weight: bold; }
         .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; }
-        #stat { font-weight: bold; font-size: 1.1em; }
+        #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
+        .staff-tag { color: #2ecc71; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <header>
-    <div id="stat">🇮🇹 CENTRALE ITALIA: <span id="count">In attesa login</span></div>
+    <div id="stat">🇮🇹 IT CENTRALE ITALIA: <span id="count">Inserire Codice</span></div>
     <div id="login-section" class="login-box">
         <input type="password" id="operator-code" placeholder="Codice Operatore">
         <button onclick="checkAuth()">ENTRA</button>
@@ -46,6 +47,7 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -55,11 +57,13 @@
     window.checkAuth = function() {
         const code = document.getElementById('operator-code').value;
         if (code === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ STAFF ATTIVO</b>";
+            document.getElementById('login-section').innerHTML = "<span class='staff-tag'>⭐ STAFF ATTIVO</span>";
             loadNasaData();
             loadCloudData();
             addLegend();
-        } else { alert("Codice errato!"); }
+        } else { 
+            alert("Codice Operatore non valido!"); 
+        }
     };
 
     async function loadNasaData() {
@@ -78,30 +82,35 @@
                 const lon = parseFloat(c[1]);
                 const bright = parseFloat(c[2]);
 
-                // --- FILTRO RESTRITTIVO TOTALE ---
-                let check = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
+                // --- FILTRI DI ESCLUSIONE DRASTICI ---
+                let isItalia = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
 
-                // 1. Taglio Svizzera (Bern/Zurich) - Abbassiamo il confine Nord
-                if (lat > 46.8) check = false; 
+                // 1. Taglio Svizzera (Elimina Berna/Zurigo)
+                if (lat > 46.55) isItalia = false; 
 
-                // 2. Taglio Istria/Croazia (Pola) - Stringiamo a Est sopra Trieste
-                if (lon > 13.7 && lat > 44.8) check = false; 
+                // 2. Taglio Balcani/Istria (Elimina Pola e costa croata)
+                if (lon > 13.6 && lat > 42.0) isItalia = false; 
 
-                // 3. Taglio Corsica e Tunisia (già impostati)
-                if (lat < 37.2) check = false; 
-                if (lon < 9.2 && lat < 43.0) check = false;
+                // 3. Taglio Corsica e Nord Africa
+                if (lat < 37.1) isItalia = false; 
+                if (lon < 9.1 && lat < 43.1) isItalia = false;
 
-                if (check) {
+                if (isItalia) {
                     const temp = (bright - 273.15).toFixed(0);
                     const color = temp > 50 ? '#d73027' : '#fdae61';
                     L.marker([lat, lon], {
-                        icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, className: 'f-icon' })
-                    }).addTo(nasaLayer).bindPopup(`🔥 Incendio: ${temp}°C`);
+                        icon: L.divIcon({ 
+                            html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, 
+                            className: 'f-icon' 
+                        })
+                    }).addTo(nasaLayer).bindPopup(`🔥 Incendio Rilevato: ${temp}°C`);
                     n++;
                 }
             }
             document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { console.error("Errore"); }
+        } catch (e) { 
+            console.error("Errore caricamento dati satellitari"); 
+        }
     }
 
     function loadCloudData() {
@@ -112,7 +121,7 @@
                 if (data.lat && data.lon) {
                     L.marker([data.lat, data.lon], {
                         icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' })
-                    }).addTo(cloudLayer).bindPopup(data.desc || "Segnalazione");
+                    }).addTo(cloudLayer).bindPopup(data.desc || "Segnalazione Operatore");
                 }
             });
         });
@@ -122,7 +131,10 @@
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function() {
             const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>LEGENDA</b><br><i class="fas fa-fire" style="color:#d73027"></i> Critico<br><i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br><i class="fas fa-camera" style="color:purple"></i> Cloud';
+            div.innerHTML = '<b>LEGENDA</b><br>' +
+                            '<i class="fas fa-fire" style="color:#d73027"></i> Critico (>50°C)<br>' +
+                            '<i class="fas fa-fire" style="color:#fdae61"></i> Moderato<br>' +
+                            '<i class="fas fa-camera" style="color:purple"></i> Segnalazione Cloud';
             return div;
         };
         legend.addTo(map);
@@ -130,8 +142,15 @@
 
     map.on('click', async (e) => {
         if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
-            const desc = prompt("Descrizione:");
-            if (desc) { await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() }); }
+            const desc = prompt("Inserisci descrizione incendio:");
+            if (desc) { 
+                await addDoc(collection(db, "segnalazioni"), { 
+                    lat: e.latlng.lat, 
+                    lon: e.latlng.lng, 
+                    desc: desc, 
+                    timestamp: new Date() 
+                }); 
+            }
         }
     });
 </script>
