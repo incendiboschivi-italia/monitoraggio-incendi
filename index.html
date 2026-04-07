@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoraggio Incendi Italia - Real Time</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { height: calc(100vh - 60px); width: 100%; }
@@ -17,7 +15,6 @@
         .login-box input { padding: 5px; border-radius: 4px; border: none; }
         .login-box button { padding: 5px 15px; cursor: pointer; background: #e74c3c; color: white; border: none; border-radius: 4px; }
         .hidden { display: none; }
-        .legend { background: white; padding: 10px; line-height: 1.5; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -31,7 +28,7 @@
             <button onclick="login()">Accedi</button>
         </div>
         <div id="user-info" class="hidden">
-            <span>Sei loggato come Volontario</span>
+            <span id="user-display">Sei loggato</span>
             <button onclick="logout()">Esci</button>
         </div>
     </div>
@@ -42,10 +39,9 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
-    // --- 1. CONFIGURAZIONE FIREBASE ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
@@ -60,53 +56,48 @@
     const auth = getAuth();
     const db = getFirestore();
 
-    // --- 2. SETUP MAPPA ---
     const map = L.map('map').setView([41.8719, 12.5674], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Icone
+    // --- FIX ICONE (Usiamo icone standard se quelle esterne falliscono) ---
     const nasaIcon = L.icon({
-        iconUrl: 'https://cdn-icons-png.flaticon.com/512/785/785116.png',
-        iconSize: [25, 25]
-    });
-    const volontarioIcon = L.icon({
-        iconUrl: 'https://cdn-icons-png.flaticon.com/512/4359/4359654.png',
-        iconSize: [35, 35],
-        iconAnchor: [17, 35]
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41]
     });
 
-// --- 3. DATI NASA (SATELLITE) ---
+    const volontarioIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41]
+    });
+
+    // --- DATI NASA ---
     const NASA_KEY = "23be8e2bdf02493090dfd0a9667fe3cc";
     async function loadNasaData() {
         try {
-            // NOTA: Qui uso i BACKTICK ` (tasto Alt + 96)
+            // USIAMO I BACKTICK ` PER LA NASA_KEY
             const res = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/7`);
-            
-            if (!res.ok) throw new Error("Errore risposta NASA");
-
             const csv = await res.text();
             const lines = csv.split('\n').slice(1);
-            
             lines.forEach(line => {
                 const c = line.split(',');
                 if(c.length > 2) {
                     L.marker([parseFloat(c[1]), parseFloat(c[2])], {icon: nasaIcon})
-                     .addTo(map).bindPopup("Rilevamento Satellite NASA");
+                     .addTo(map).bindPopup("<b>Satellite NASA</b><br>Rilevato calore intenso");
                 }
             });
-        } catch(e) { 
-            console.error("Errore NASA:", e); 
-        }
+        } catch(e) { console.error("Errore NASA:", e); }
     }
     loadNasaData();
 
-    // --- 4. GESTIONE VOLONTARI (REAL-TIME) ---
+    // --- AUTENTICAZIONE ---
     window.login = () => {
         const e = document.getElementById('email').value;
         const p = document.getElementById('pass').value;
-        signInWithEmailAndPassword(auth, e, p).catch(alert);
+        signInWithEmailAndPassword(auth, e, p).catch(err => alert("Errore: " + err.message));
     };
     window.logout = () => signOut(auth);
 
@@ -116,44 +107,41 @@
         if (user) {
             loginForm.classList.add('hidden');
             userInfo.classList.remove('hidden');
+            document.getElementById('user-display').innerText = "Volontario: " + user.email;
         } else {
             loginForm.classList.remove('hidden');
             userInfo.classList.add('hidden');
         }
     });
 
-    // Segnalazione su click
+    // --- SEGNALAZIONI ---
     map.on('click', async (e) => {
         if (auth.currentUser) {
-            const desc = prompt("Cosa vedi? (es. fumo denso, fiamme alte)");
+            const desc = prompt("Descrizione incendio (es. Bosco zona Nord):");
             if (desc) {
                 await addDoc(collection(db, "segnalazioni"), {
                     lat: e.latlng.lat,
                     lng: e.latlng.lng,
                     desc: desc,
                     user: auth.currentUser.email,
-                    time: new Date()
+                    time: serverTimestamp()
                 });
             }
         } else {
-            alert("Accedi come volontario per segnalare!");
+            alert("Devi accedere per segnalare!");
         }
     });
 
-// Sostituisci l'ultima parte (onSnapshot) con questa:
     onSnapshot(collection(db, "segnalazioni"), (snap) => {
         snap.docChanges().forEach(change => {
             if (change.type === "added") {
                 const d = change.doc.data();
-                // Creiamo una data leggibile invece di lasciarlo al caso
-                const dataOra = d.time && d.time.seconds ? new Date(d.time.seconds * 1000).toLocaleString() : "Data non disponibile";
-                
+                const data = d.time ? new Date(d.time.seconds * 1000).toLocaleString() : "Ora non disponibile";
                 L.marker([d.lat, d.lng], {icon: volontarioIcon}).addTo(map)
-                 .bindPopup(`<b>Segnalazione Volontaria</b><br>${d.desc}<br><small>Inviato da: ${d.user}</small><br><small>${dataOra}</small>`);
+                 .bindPopup(`<b>Segnalazione Volontaria</b><br>${d.desc}<br><small>${d.user}</small><br><small>${data}</small>`);
             }
         });
     });
 </script>
-
 </body>
 </html>
