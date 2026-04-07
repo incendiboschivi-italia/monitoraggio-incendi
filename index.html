@@ -78,26 +78,30 @@
                 const lon = parseFloat(c[1]);
                 const bright = parseFloat(c[2]);
 
-                // --- NUOVO FILTRO RESTRITTIVO EST ---
-                let isItalia = (lat > 36.5 && lat < 47.2) && (lon > 6.5 && lon < 18.5);
+                // --- FILTRO RESTRITTIVO TOTALE ---
+                let check = (lat > 36.5 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
 
-                // Blocchi specifici per pulire le zone esterne
-                if (lon > 13.5 && lat > 45.3) isItalia = false; // Slovenia/Croazia Nord
-                if (lon > 15.0 && lat > 41.5) isItalia = false; // Croazia/Bosnia
-                if (lat < 37.5) isItalia = false; // Tunisia
-                if (lon < 9.2 && lat < 43.0 && lat > 41.2) isItalia = false; // Corsica
+                // 1. Taglio Svizzera (Bern/Zurich) - Abbassiamo il confine Nord
+                if (lat > 46.8) check = false; 
 
-                if (isItalia) {
+                // 2. Taglio Istria/Croazia (Pola) - Stringiamo a Est sopra Trieste
+                if (lon > 13.7 && lat > 44.8) check = false; 
+
+                // 3. Taglio Corsica e Tunisia (già impostati)
+                if (lat < 37.2) check = false; 
+                if (lon < 9.2 && lat < 43.0) check = false;
+
+                if (check) {
                     const temp = (bright - 273.15).toFixed(0);
                     const color = temp > 50 ? '#d73027' : '#fdae61';
                     L.marker([lat, lon], {
                         icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`, className: 'f-icon' })
-                    }).addTo(nasaLayer).bindPopup(`🔥 Focolaio Nazionale: ${temp}°C`);
+                    }).addTo(nasaLayer).bindPopup(`🔥 Incendio: ${temp}°C`);
                     n++;
                 }
             }
             document.getElementById('count').innerText = `${n} Incendi in Italia`;
-        } catch (e) { console.error("Errore NASA"); }
+        } catch (e) { console.error("Errore"); }
     }
 
     function loadCloudData() {
@@ -126,7 +130,7 @@
 
     map.on('click', async (e) => {
         if (document.getElementById('login-section').innerHTML.includes("STAFF")) {
-            const desc = prompt("Descrizione incendio:");
+            const desc = prompt("Descrizione:");
             if (desc) { await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() }); }
         }
     });
