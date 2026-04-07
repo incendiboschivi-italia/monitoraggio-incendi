@@ -120,7 +120,7 @@ async function loadNasaData() {
 
                     // 2. Filtro Anti-Falsi Positivi (Tolleranza aumentata)
                     let isIndustrial = false;
-                    raffinerie.forEach(r => {
+                    raffinerie.forEach(r => {lat: 40.67, lon: 16.63}, // Falso positivo Matera (Trasanello)
                         // Usiamo una distanza di 0.05 gradi (~5km) per coprire intere zone industriali
                         const dLat = Math.abs(lat - r.lat);
                         const dLon = Math.abs(lon - r.lon);
