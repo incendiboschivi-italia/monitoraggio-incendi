@@ -79,7 +79,7 @@
     async function loadNasaData() {
         try {
             // Usiamo corsproxy.io per sbloccare l'accesso ai dati
-            const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_KEY}/VIIRS_SNPP/ITA/1`;
+            const url = `https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/${NASA_KEY}/VIIRS_SNPP/12,41,13,42/1`;
             const res = await fetch(url);
             
             if (!res.ok) throw new Error("Errore risposta NASA");
