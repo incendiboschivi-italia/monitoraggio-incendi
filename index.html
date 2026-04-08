@@ -53,7 +53,6 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // DATABASE SOLO VULCANI (Raffinerie rimosse come richiesto)
     const volcanoList = [
         {lat: 37.75, lon: 14.99, name: "Etna"},
         {lat: 38.79, lon: 15.21, name: "Stromboli"}
@@ -83,11 +82,13 @@
                 const lon = parseFloat(c[1]);
                 const temp = (parseFloat(c[2]) - 273.15).toFixed(0);
 
-                // --- FILTRO GEOGRAFICO RIGIDO ---
-                let inArea = (lat > 36.55 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
-                if (lat > 46.55) inArea = false; // No oltre Alpi
-                if (lon < 9.7 && lat > 41.3 && lat < 43.1) inArea = false; // No Corsica
-                if (lon > 13.6 && lat > 42.0) inArea = false; // No Balcani
+                // --- FILTRO GEOGRAFICO SUPER RIGIDO ---
+                // Alzato a 37.0 per tagliare fuori Tunisia/Algeria cerchiate nell'immagine
+                let inArea = (lat > 37.0 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
+                
+                if (lat > 46.55) inArea = false; // Taglio Nord
+                if (lon < 9.7 && lat > 41.3 && lat < 43.1) inArea = false; // Taglio Corsica
+                if (lon > 13.6 && lat > 42.0) inArea = false; // Taglio Balcani
 
                 if (inArea) {
                     let isVolcano = false;
@@ -105,9 +106,8 @@
 
                     if (isVolcano) {
                         iconHtml = `<i class="fas fa-volcano" style="color:#e67e22; font-size:18px;"></i>`;
-                        popupContent = `<b>🌋 ATTIVITÀ VULCANICA: ${vName.toUpperCase()}</b><br>Non è un incendio boschivo.<br><i>Temp: ${temp}°C</i>`;
+                        popupContent = `<b>🌋 ATTIVITÀ VULCANICA: ${vName.toUpperCase()}</b><br>Non è un incendio.<br><i>Temp: ${temp}°C</i>`;
                     } else {
-                        // Se non è vulcano ed è in Italia, è un incendio boschivo
                         iconHtml = `<i class="fas fa-fire" style="color:${temp > 60 ? '#d73027' : '#fdae61'}; font-size:16px;"></i>`;
                         popupContent = `<b>🔥 INCENDIO BOSCHIVO</b><br>Temperatura: ${temp}°C`;
                         nReal++;
@@ -118,7 +118,7 @@
                 }
             }
             document.getElementById('count').innerText = `${nReal} Incendi in Italia`;
-        } catch (e) { console.error("Errore"); }
+        } catch (e) { console.error("Errore fetch"); }
     }
 
     function loadCloudData() {
