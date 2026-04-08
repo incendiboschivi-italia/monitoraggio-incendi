@@ -67,47 +67,19 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
     
-    // --- BLACKLIST INTEGRALE 100% RIPRISTINATA (CON COMMENTI) ---
     const blacklist = [
-        // OGGI & RECENTI
-        {lat:41.13, lon:15.45}, // Prysmian
-        {lat:42.04, lon:14.72}, // Z.I. San Salvo
-        {lat:44.78, lon:10.73}, // Panaria Ceramiche
-        {lat:45.44, lon:10.49}, // Feralpi Siderurgica
-        {lat:45.69, lon:11.44}, // Rossifloor
-        {lat:45.72, lon:11.38}, // Z.I. Schio
-        {lat:45.73, lon:11.78}, // Aggregato Cassola
-        {lat:45.92, lon:12.31}, // Z.I. Vittorio Veneto
-        {lat:46.20, lon:13.13}, // Ferriere Nord
-        {lat:45.85, lon:8.97},  // Z.I. Stabio (Svizzera)
-        {lat:46.96, lon:7.16},  // Galmiz (Svizzera)
-
-        // RAFFINERIE & STORICI
-        {lat:45.10, lon:8.82},  // Sannazzaro
-        {lat:45.45, lon:12.23}, // Porto Marghera
-        {lat:37.20, lon:15.17}, // Priolo
-        {lat:37.13, lon:15.18}, // Augusta
-        {lat:40.59, lon:18.03}, // Brindisi
-        {lat:40.48, lon:17.22}, // Taranto
-        {lat:38.20, lon:15.24}, // Milazzo
-        {lat:39.09, lon:9.01},  // Sarroch
-        {lat:43.58, lon:10.33}, // Livorno
-        {lat:44.29, lon:8.44},  // Vado Ligure
-        {lat:43.62, lon:13.36}, // Falconara Marittima
-
-        // ZONE INDUSTRIALI & ALTRI
-        {lat:45.47, lon:10.22}, // Brescia Est
-        {lat:45.15, lon:9.97},  // Cremona
-        {lat:45.64, lon:9.61},  // Dalmine
-        {lat:45.72, lon:9.47},  // Lecco
-        {lat:45.79, lon:8.70},  // Vergiate
-        {lat:45.38, lon:11.92}, // Padova
-        {lat:44.54, lon:10.78}, // Sassuolo
-        {lat:45.10, lon:7.51},  // Torino Est
-        {lat:40.58, lon:9.71},  // Sardegna Est
-        {lat:39.20, lon:8.39},  // Portoscuso
-        {lat:37.75, lon:14.99}, // Etna
-        {lat:38.79, lon:15.21}  // Stromboli
+        {lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, 
+        {lat:45.44, lon:10.49}, {lat:45.69, lon:11.44}, {lat:45.72, lon:11.38}, 
+        {lat:45.73, lon:11.78}, {lat:45.92, lon:12.31}, {lat:46.20, lon:13.13}, 
+        {lat:45.85, lon:8.97},  {lat:46.96, lon:7.16}, {lat:45.10, lon:8.82},  
+        {lat:45.45, lon:12.23}, {lat:37.20, lon:15.17}, {lat:37.13, lon:15.18}, 
+        {lat:40.59, lon:18.03}, {lat:40.48, lon:17.22}, {lat:38.20, lon:15.24}, 
+        {lat:39.09, lon:9.01},  {lat:43.58, lon:10.33}, {lat:44.29, lon:8.44},  
+        {lat:43.62, lon:13.36}, {lat:45.47, lon:10.22}, {lat:45.15, lon:9.97},  
+        {lat:45.64, lon:9.61},  {lat:45.72, lon:9.47},  {lat:45.79, lon:8.70},  
+        {lat:45.38, lon:11.92}, {lat:44.54, lon:10.78}, {lat:45.10, lon:7.51},  
+        {lat:40.58, lon:9.71},  {lat:39.20, lon:8.39},  {lat:37.75, lon:14.99}, 
+        {lat:38.79, lon:15.21}
     ];
 
     const legend = L.control({position: 'bottomleft'});
@@ -137,7 +109,6 @@
                 const lon = parseFloat(c[1]);
 
                 let inArea = false;
-                // FILTRI CONFINI PRECISI
                 if (lat > 44.2 && lat < 47.1 && lon > 6.6 && lon < 13.5) inArea = true; 
                 else if (lat > 37.5 && lat <= 44.2 && lon > 8.0 && lon < 17.5) inArea = true; 
                 else if (lat > 36.5 && lat <= 37.5 && lon > 12.1 && lon < 15.6) inArea = true; 
@@ -151,6 +122,15 @@
                     if(skip) continue;
 
                     nReal++;
+                    
+                    // AGGIUNTA CERCHIO ATTORNO ALL'INCENDIO
+                    L.circle([lat, lon], {
+                        color: '#d73027',
+                        fillColor: '#f46d43',
+                        fillOpacity: 0.3,
+                        radius: 500 // Raggio in metri
+                    }).addTo(nasaLayer);
+
                     L.marker([lat, lon], { 
                         icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:#d73027; font-size:16px;"></i>`, className: 'f-icon' }) 
                     }).addTo(nasaLayer);
