@@ -64,10 +64,10 @@
     
     const map = L.map('map').setView([42.0, 12.5], 6);
 
-    // --- AGGIORNAMENTO: MAPPA SATELLITARE (Esri World Imagery) ---
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community',
-        maxZoom: 19
+    // --- AGGIORNAMENTO: MAPPA TOPOGRAFICA (OpenTopoMap) ---
+    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
     }).addTo(map);
 
     const nasaLayer = L.layerGroup().addTo(map);
@@ -124,7 +124,7 @@
         const div = L.DomUtil.create('div', 'legend');
         div.innerHTML = `<div><i class="fas fa-fire" style="color:#d73027"></i> Incendio Satellite</div>
                          <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>
-                         <div style="border-top: 1px solid #ccc; margin-top: 5px; font-weight: normal; font-size: 11px;">Vista Satellitare Attiva</div>`;
+                         <div style="border-top: 1px solid #ccc; margin-top: 5px; font-weight: normal; font-size: 11px;">Mappa Topografica (Curve di livello)</div>`;
         return div;
     };
     legend.addTo(map);
