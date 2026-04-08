@@ -14,7 +14,8 @@
         .login-box { display: flex; align-items: center; }
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 15px; }
         .btn-login { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
+        #stat { font-weight: bold; font-size: 1.1em; color: #fff; line-height: 1.2; }
+        .sub-stat { font-size: 0.7em; color: #ffa500; display: block; }
 
         .legend { 
             background: rgba(255, 255, 255, 0.9); 
@@ -28,7 +29,6 @@
         }
         .legend i { width: 18px; text-align: center; margin-right: 8px; }
 
-        /* Stili per il Righello */
         .ruler-btn {
             background: white;
             width: 34px;
@@ -55,7 +55,10 @@
 <body>
 
 <header>
-    <div id="stat">🇮🇹 MONITORAGGIO ITALIA: <span id="count">Verifica Alert Operativi...</span></div>
+    <div id="stat">
+        🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
+        <span class="sub-stat" id="area-est">Superficie stimata: Calcolo in corso...</span>
+    </div>
     <div class="login-box">
         <button class="btn-news" onclick="openNewsMenu()">NOTIZIE RAPIDE</button>
         <div id="login-section">
@@ -85,7 +88,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    // --- LAYER BASE ---
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri World Imagery', maxZoom: 19
     });
@@ -96,7 +98,7 @@
 
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
 
-    // --- RIGHELLO (RULER) PLUGIN ---
+    // --- RIGHELLO ---
     let rulerActive = false;
     let rulerPoints = [];
     let rulerLayers = L.layerGroup().addTo(map);
@@ -107,89 +109,50 @@
             const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
             const button = L.DomUtil.create('a', 'ruler-btn', container);
             button.innerHTML = '<i class="fas fa-ruler-combined"></i>';
-            button.title = "Misura distanza";
-
             L.DomEvent.on(button, 'click', function(e) {
                 L.DomEvent.stopPropagation(e);
                 rulerActive = !rulerActive;
-                if (rulerActive) {
-                    button.classList.add('active');
-                    map.getContainer().style.cursor = 'crosshair';
-                } else {
-                    button.classList.remove('active');
-                    map.getContainer().style.cursor = '';
-                    resetRuler();
-                }
+                if (rulerActive) { button.classList.add('active'); map.getContainer().style.cursor = 'crosshair'; }
+                else { button.classList.remove('active'); map.getContainer().style.cursor = ''; resetRuler(); }
             });
             return container;
         }
     });
     map.addControl(new RulerControl());
 
-    function resetRuler() {
-        rulerPoints = [];
-        rulerLayers.clearLayers();
-    }
+    function resetRuler() { rulerPoints = []; rulerLayers.clearLayers(); }
 
     map.on('click', (e) => {
         if (!rulerActive) return;
-
         rulerPoints.push(e.latlng);
         L.circleMarker(e.latlng, { radius: 5, color: '#e74c3c' }).addTo(rulerLayers);
-
         if (rulerPoints.length === 2) {
             const dist = map.distance(rulerPoints[0], rulerPoints[1]);
             const label = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
-            
             L.polyline(rulerPoints, { color: '#e74c3c', weight: 3, dashArray: '5, 10' }).addTo(rulerLayers);
-            L.marker(e.latlng, {
-                icon: L.divIcon({
-                    className: 'distance-label',
-                    html: label,
-                    iconAnchor: [-10, 20]
-                })
-            }).addTo(rulerLayers);
-            
-            rulerPoints = [e.latlng]; // Permette misurazioni continue o reset al prossimo click
+            L.marker(e.latlng, { icon: L.divIcon({ className: 'distance-label', html: label, iconAnchor: [-10, 20] }) }).addTo(rulerLayers);
+            rulerPoints = [e.latlng];
         }
     });
 
-    // --- INDICE DI RISCHIO STORICO ---
+    // --- RISCHIO STORICO ---
     const riskLayer = L.layerGroup();
     const riskZones = [
-        {lat: 40.1, lon: 9.1, r: 80000},  {lat: 37.5, lon: 14.2, r: 90000},
+        {lat: 40.1, lon: 9.1, r: 80000}, {lat: 37.5, lon: 14.2, r: 90000},
         {lat: 39.0, lon: 16.5, r: 60000}, {lat: 41.2, lon: 15.5, r: 50000},
         {lat: 42.3, lon: 13.5, r: 40000}, {lat: 43.5, lon: 11.0, r: 35000},
         {lat: 40.5, lon: 17.5, r: 45000}
     ];
-
-    riskZones.forEach(zone => {
-        L.circle([zone.lat, zone.lon], {
-            radius: zone.r, color: 'orange', fillColor: '#f03', fillOpacity: 0.2, weight: 1, interactive: false
-        }).addTo(riskLayer);
-    });
+    riskZones.forEach(z => L.circle([z.lat, z.lon], { radius: z.r, color: 'orange', fillColor: '#f03', fillOpacity: 0.15, weight: 1, interactive: false }).addTo(riskLayer));
 
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
     const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
-    const overlayMaps = { "⚠️ Indice Rischio Storico": riskLayer, "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer };
+    const overlayMaps = { "⚠️ Rischio Storico": riskLayer, "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer };
     L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
     
-    const blacklist = [
-        {lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, 
-        {lat:45.44, lon:10.49}, {lat:45.69, lon:11.44}, {lat:45.72, lon:11.38}, 
-        {lat:45.73, lon:11.78}, {lat:45.92, lon:12.31}, {lat:46.20, lon:13.13}, 
-        {lat:45.85, lon:8.97}, {lat:46.96, lon:7.16}, {lat:45.10, lon:8.82}, 
-        {lat:45.45, lon:12.23}, {lat:37.20, lon:15.17}, {lat:37.13, lon:15.18}, 
-        {lat:40.59, lon:18.03}, {lat:40.48, lon:17.22}, {lat:38.20, lon:15.24}, 
-        {lat:39.09, lon:9.01}, {lat:43.58, lon:10.33}, {lat:44.29, lon:8.44}, 
-        {lat:43.62, lon:13.36}, {lat:45.47, lon:10.22}, {lat:45.15, lon:9.97}, 
-        {lat:45.64, lon:9.61}, {lat:45.72, lon:9.47}, {lat:45.79, lon:8.70}, 
-        {lat:45.38, lon:11.92}, {lat:44.54, lon:10.78}, {lat:45.10, lon:7.51}, 
-        {lat:40.58, lon:9.71}, {lat:39.20, lon:8.39}, {lat:37.75, lon:14.99}, 
-        {lat:38.79, lon:15.21}
-    ];
+    const blacklist = [{lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, {lat:37.20, lon:15.17}, {lat:45.47, lon:10.22}];
 
     function toDMS(deg, pos, neg) {
         const absolute = Math.abs(deg);
@@ -199,31 +162,23 @@
         return `${d}° ${m}' ${s}" ${deg >= 0 ? pos : neg}`;
     }
 
-    function getVegetationType(lat, lon) {
-        if (lat > 44.0 || (lat < 42.5 && lat > 41.5)) return "🌲 BOSCO / FORESTA";
-        if (lat < 39.0) return "🌱 MACCHIA MEDITERRANEA";
-        return "🌾 AREA AGRICOLA / MIX";
-    }
-
     window.openNewsMenu = () => {
-        const scelta = prompt("Scegli fonte:\n1-VVF\n2-Prot. Civile\n3-Geoportale AIB", "1");
+        const scelta = prompt("1-VVF | 2-Prot. Civile | 3-AIB", "1");
         if (scelta === "1") window.open('https://www.vigilfuoco.it/media/notizie/dal-territorio', '_blank');
         else if (scelta === "2") window.open('https://www.iononrischio.gov.it/it/preparati/incendi-boschivi/', '_blank');
         else if (scelta === "3") window.open('http://www.pcn.minambiente.it/viewer/index.php?services=AIB_Incendi_PNZ', '_blank');
     };
 
     window.checkAuth = () => {
-        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
-        } else { alert("Codice errato"); }
+        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
+        else alert("Codice errato");
     };
 
     const legend = L.control({position: 'bottomleft'});
     legend.onAdd = function () {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `<div><i class="fas fa-fire" style="color:#d73027"></i> Incendio</div>
-                         <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>
-                         <div style="color:orange"><i class="fas fa-circle" style="color:rgba(255,0,0,0.3)"></i> Rischio Storico Secchezza</div>`;
+        div.innerHTML = `<div><i class="fas fa-fire" style="color:#d73027"></i> Incendio Sat</div>
+                         <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>`;
         return div;
     };
     legend.addTo(map);
@@ -234,6 +189,9 @@
             const csv = await res.text();
             const lines = csv.split('\n');
             let nReal = 0;
+            let totalAreaHectares = 0;
+            const AREA_PER_PIXEL = 14.06; // 375m x 375m ≈ 14.06 ettari
+
             nasaLayer.clearLayers();
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
@@ -243,13 +201,17 @@
                     let skip = false;
                     blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.06) skip=true; });
                     if(skip) continue;
+                    
                     nReal++;
-                    const info = `<div style="font-size:11px;"><b>SITO:</b> ${getVegetationType(lat,lon)}<br><b>DMS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}</div>`;
-                    L.circle([lat, lon], { color: 'red', radius: 800 }).addTo(nasaLayer).bindPopup(info);
+                    totalAreaHectares += AREA_PER_PIXEL;
+                    
+                    const info = `<div style="font-size:11px;"><b>SITO:</b> Incendio Attivo<br><b>AREA STIMATA:</b> ~14 ha<br><b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}</div>`;
+                    L.circle([lat, lon], { color: 'red', weight: 1, fillColor: '#f03', fillOpacity: 0.4, radius: 375 }).addTo(nasaLayer).bindPopup(info);
                 }
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
-        } catch (e) { console.error("NASA data error"); }
+            document.getElementById('area-est').innerText = `Superficie colpita stimata: ${totalAreaHectares.toLocaleString('it-IT')} Ettari (ha)`;
+        } catch (e) { console.error("Errore calcolo area NASA"); }
     }
 
     window.onload = () => {
