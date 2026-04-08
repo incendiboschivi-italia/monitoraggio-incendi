@@ -6,32 +6,26 @@
     <title>MONITORAGGIO INCENDI ITALIA - PRO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 1000; border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
-        
-        .leaflet-control-geocoder { border-radius: 8px !important; box-shadow: 0 2px 10px rgba(0,0,0,0.5) !important; width: 300px !important; border: none !important; }
-        .leaflet-control-geocoder-form input { padding: 10px !important; font-size: 14px !important; border-radius: 8px !important; }
-
         .login-box { display: flex; align-items: center; }
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 15px; }
         .btn-login { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .legend { background: rgba(255, 255, 255, 0.95); padding: 12px; border-radius: 10px; color: black; font-size: 13px; box-shadow: 0 0 15px rgba(0,0,0,0.6); }
-        #stat { font-weight: bold; font-size: 1.1em; color: #fff; display: flex; align-items: center; }
-        #stat span.flag { margin-right: 10px; font-size: 1.3em; } 
+        #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
     </style>
 </head>
 <body>
 
 <header>
-    <div id="stat"><span class="flag">🇮🇹</span> MONITORAGGIO INCENDI ITALIA: <span id="count">Caricamento...</span></div>
+    <div id="stat">🇮🇹 MONITORAGGIO ITALIA: <span id="count">Filtro attivo...</span></div>
     <div class="login-box">
-        <button class="btn-news" onclick="toggleNews()"><i class="fas fa-search"></i> NOTIZIE RAPIDE</button>
+        <button class="btn-news" onclick="window.open('https://www.vigilfuoco.tv/notizie')">NOTIZIE RAPIDE</button>
         <div id="login-section">
-            <input type="password" id="operator-code" placeholder="Codice Operatore" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; margin-right:5px;">
+            <input type="password" id="operator-code" placeholder="Codice" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:100px;">
             <button class="btn-login" onclick="checkAuth()">ENTRA</button>
         </div>
     </div>
@@ -40,28 +34,15 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
-        authDomain: "monitoraggioincendi-41f5f.firebaseapp.com",
-        projectId: "monitoraggioincendi-41f5f",
-        storageBucket: "monitoraggioincendi-41f5f.firebasestorage.app",
-        messagingSenderId: "63942195354",
-        appId: "1:63942195354:web:cc5bb978858676c6748723"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const nasaLayer = L.layerGroup().addTo(map);
-    const blacklist = [{lat:45.1,lon:7.51},{lat:45.45,lon:10.49},{lat:45.47,lon:10.22},{lat:45.15,lon:9.97},{lat:45.64,lon:9.61},{lat:45.72,lon:9.47},{lat:45.79,lon:8.7},{lat:45.38,lon:11.92},{lat:40.58,lon:9.71},{lat:39.2,lon:8.39},{lat:40.59,lon:18.03},{lat:37.2,lon:15.17},{lat:37.13,lon:15.18},{lat:37.75,lon:14.99},{lat:38.79,lon:15.21},{lat:38.2,lon:15.24},{lat:39.09,lon:9.01},{lat:40.48,lon:17.22},{lat:45.45,lon:12.23},{lat:44.91,lon:8.82},{lat:43.58,lon:10.33}];
+    
+    // Lista siti industriali/falsi positivi
+    const blacklist = [{lat:45.1,lon:7.51},{lat:45.45,lon:10.49},{lat:37.5,lon:15.0}];
 
     async function loadNasaData() {
         try {
@@ -70,32 +51,53 @@
             const lines = csv.split('\n');
             let nReal = 0;
             nasaLayer.clearLayers();
+
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
                 if (c.length < 3) continue;
-                const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
+                const lat = parseFloat(c[0]);
+                const lon = parseFloat(c[1]);
+
+                // --- NUOVO FILTRO "MURO D'ACCIAIO" ---
+                let inArea = false;
+
+                // 1. Accetta solo se è sopra la Tunisia (sopra 37.5)
+                if (lat > 37.5 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
+                    inArea = true;
+                }
                 
-                // FILTRO TERRITORIALE DEFINITIVO
-                let inArea = (lat > 36.6 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
-                
-                // TAGLIO SVIZZERA (Punto Berna)
-                if (lat > 46.5 && lon < 10.4) inArea = false; 
-                
-                // TAGLIO CROAZIA (Punto Fiume/Rijeka)
-                if (lon > 13.7 && lat > 45.3) inArea = false; 
-                if (lon > 15.0 && lat > 42.0) inArea = false;
+                // 2. Regola speciale per la punta della Sicilia (che scende fino a 36.6)
+                // Ma solo se siamo esattamente nell'area della Sicilia
+                if (lat > 36.6 && lat <= 37.5 && lon > 12.2 && lon < 15.6) {
+                    inArea = true;
+                }
+
+                // 3. Blocchi per Svizzera e Balcani
+                if (lat > 46.2 && lon < 10.5) inArea = false; // Svizzera
+                if (lon > 13.6 && lat > 45.3) inArea = false; // Croazia/Fiume
 
                 if (inArea) {
                     let skip = false;
-                    blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08) skip=true; });
+                    blacklist.forEach(s => { 
+                        if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.05) skip=true; 
+                    });
                     if(skip) continue;
+
                     nReal++;
-                    L.marker([lat, lon], { icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:#d73027; font-size:16px;"></i>`, className: 'f-icon' }) }).addTo(nasaLayer);
+                    L.marker([lat, lon], { 
+                        icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:#d73027; font-size:16px;"></i>`, className: 'f-icon' }) 
+                    }).addTo(nasaLayer);
                 }
             }
             document.getElementById('count').innerText = `${nReal} Incendi in Italia`;
-        } catch (e) {}
+        } catch (e) { console.error("Errore caricamento"); }
     }
+
+    window.checkAuth = () => {
+        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
+            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ ATTIVO</b>";
+        }
+    };
 
     window.onload = () => { loadNasaData(); setInterval(loadNasaData, 600000); };
 </script>
