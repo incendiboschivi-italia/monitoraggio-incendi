@@ -53,9 +53,19 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // BLACKLIST RIMOZIONE TOTALE (Invisibile e fuori dal conteggio)
+    // BLACKLIST RIMOZIONE TOTALE (Aggiornata con i nuovi siti industriali)
     const blacklist = [
-        {lat: 45.38, lon: 11.92, name: "Acciaierie Venete"}, // Nuova rimozione Ponte San Nicolò
+        // --- NUOVI INSERIMENTI ---
+        {lat: 45.10, lon: 7.51,  name: "Ferriere Nord Rivoli"},
+        {lat: 45.45, lon: 10.49, name: "Feralpi Siderurgica Lonato"},
+        {lat: 45.47, lon: 10.22, name: "Duferco San Zeno/Colombo"},
+        {lat: 45.15, lon: 9.97,  name: "Oleificio Zucchi Cavatigozzi"},
+        {lat: 45.64, lon: 9.61,  name: "Tenaris-Dalmine"},
+        {lat: 45.72, lon: 9.47,  name: "Italcementi Calusco d'Adda"},
+        {lat: 45.79, lon: 8.70,  name: "Holcim Italia Ternate"},
+        
+        // --- SITI PRECEDENTI ---
+        {lat: 45.38, lon: 11.92, name: "Acciaierie Venete"},
         {lat: 40.58, lon: 9.71,  name: "Zona Industriale Siniscola"},
         {lat: 39.20, lon: 8.39,  name: "Portovesme"}, 
         {lat: 40.59, lon: 18.03, name: "Enipower Brindisi"}, 
@@ -105,10 +115,10 @@
                     let shouldSkip = false;
                     blacklist.forEach(site => {
                         const d = Math.sqrt(Math.pow(lat - site.lat, 2) + Math.pow(lon - site.lon, 2));
-                        if (d < 0.08) shouldSkip = true; 
+                        if (d < 0.08) shouldSkip = true; // Raggio di esclusione per aree industriali
                     });
 
-                    if (shouldSkip) continue; // Salto il punto industriale
+                    if (shouldSkip) continue; // Salta completamente il punto
 
                     nReal++;
                     let iconHtml = `<i class="fas fa-fire" style="color:${temp > 60 ? '#d73027' : '#fdae61'}; font-size:16px;"></i>`;
@@ -145,6 +155,13 @@
         };
         legend.addTo(map);
     }
+
+    map.on('click', async (e) => {
+        if (document.getElementById('login-section').innerHTML.includes("OPERATIVO")) {
+            const desc = prompt("Descrizione evento:");
+            if (desc) await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() });
+        }
+    });
 </script>
 </body>
 </html>
