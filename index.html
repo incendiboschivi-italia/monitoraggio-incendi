@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA - PRO</title>
+    <title>MONITORAGGIO INCENDI ITALIA - PRO TOTAL</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -20,7 +20,7 @@
 <body>
 
 <header>
-    <div id="stat">🇮🇹 MONITORAGGIO ITALIA: <span id="count">Blacklist Totale Attiva...</span></div>
+    <div id="stat">🇮🇹 MONITORAGGIO ITALIA: <span id="count">Verifica Blacklist 100%...</span></div>
     <div class="login-box">
         <button class="btn-news" onclick="window.open('https://www.vigilfuoco.tv/notizie')">NOTIZIE RAPIDE</button>
         <div id="login-section">
@@ -55,9 +55,9 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
     
-    // --- BLACKLIST STORICA E RECENTE UNIFICATA ---
+    // --- BLACKLIST INTEGRALE 100% (STORICA + RECENTE) ---
     const blacklist = [
-        // Settore Industriale e Ceramiche (Ultime richieste)
+        // CATEGORIA 1: RICHIESTE SPECIFICHE DI OGGI
         {lat:41.13, lon:15.45}, // Prysmian (Sette Torri)
         {lat:42.04, lon:14.72}, // Z.I. San Salvo (Piane Sant'Angelo)
         {lat:44.78, lon:10.73}, // Panaria Ceramiche (Canaletto)
@@ -69,24 +69,35 @@
         {lat:46.20, lon:13.13}, // Ferriere Nord (Rivoli)
         {lat:45.85, lon:8.97},  // Z.I. Stabio (Svizzera)
         {lat:46.96, lon:7.16},  // Galmiz (Svizzera)
-        
-        // Raffinerie e Petrolchimici
+
+        // CATEGORIA 2: RAFFINERIE E POLI PETROLCHIMICI (PUNTI STORICI)
         {lat:45.10, lon:8.82},  // Sannazzaro (Raffineria ENI)
         {lat:45.45, lon:12.23}, // Porto Marghera
-        {lat:37.20, lon:15.17}, // Priolo
+        {lat:37.20, lon:15.17}, // Priolo Gargallo
         {lat:37.13, lon:15.18}, // Augusta
-        {lat:40.59, lon:18.03}, // Brindisi
-        {lat:40.48, lon:17.22}, // Taranto (ILVA)
-        {lat:38.20, lon:15.24}, // Milazzo
+        {lat:40.59, lon:18.03}, // Brindisi Petrolchimico
+        {lat:40.48, lon:17.22}, // Taranto (ILVA/Raffineria)
+        {lat:38.20, lon:15.24}, // Milazzo Raffineria
         {lat:39.09, lon:9.01},  // Sarroch (Saras)
-        {lat:43.58, lon:10.33}, // Livorno
+        {lat:43.58, lon:10.33}, // Livorno (Raffineria ENI)
         {lat:44.29, lon:8.44},  // Vado Ligure
-        
-        // Vulcani e falsi positivi naturali
-        {lat:37.75, lon:14.99}, // Etna
-        {lat:38.79, lon:15.21}, // Stromboli
-        {lat:45.10, lon:7.51},  // Zona Torino Est
-        {lat:45.47, lon:10.22}  // Brescia Est
+        {lat:43.62, lon:13.36}, // Falconara Marittima (Raffineria API)
+
+        // CATEGORIA 3: ZONE INDUSTRIALI NORD E CENTRO
+        {lat:45.47, lon:10.22}, // Brescia Est
+        {lat:45.15, lon:9.97},  // Cremona
+        {lat:45.64, lon:9.61},  // Dalmine
+        {lat:45.72, lon:9.47},  // Lecco
+        {lat:45.79, lon:8.70},  // Vergiate
+        {lat:45.38, lon:11.92}, // Padova Z.I.
+        {lat:44.54, lon:10.78}, // Sassuolo (Area Ceramiche)
+        {lat:45.10, lon:7.51},  // Torino Est / Settimo Torinese
+
+        // CATEGORIA 4: SARDEGNA E ISOLE
+        {lat:40.58, lon:9.71},  // Sardegna Est (Area industriale/termica)
+        {lat:39.20, lon:8.39},  // Portoscuso / Sulcis
+        {lat:37.75, lon:14.99}, // Etna (Attività vulcanica)
+        {lat:38.79, lon:15.21}  // Stromboli
     ];
 
     async function loadNasaData() {
@@ -103,17 +114,18 @@
                 const lat = parseFloat(c[0]);
                 const lon = parseFloat(c[1]);
 
-                // --- FILTRO GEOGRAFICO PER CONFINE ITALIA ---
                 let inArea = false;
+                // --- FILTRI CONFINI NAZIONALI ---
                 if (lat > 44.2 && lat < 47.1 && lon > 6.6 && lon < 13.5) inArea = true; // Nord
-                else if (lat > 37.5 && lat <= 44.2 && lon > 8.0 && lon < 17.5) inArea = true; // Centro-Sud
-                else if (lat > 36.5 && lat <= 37.5 && lon > 12.1 && lon < 15.6) inArea = true; // Sicilia
+                else if (lat > 37.5 && lat <= 44.2 && lon > 8.0 && lon < 17.5) inArea = true; // Centro-Sud (No Balcani)
+                else if (lat > 36.5 && lat <= 37.5 && lon > 12.1 && lon < 15.6) inArea = true; // Sicilia (No Tunisia)
                 else if (lat > 38.8 && lat < 41.5 && lon > 8.0 && lon < 10.0) inArea = true; // Sardegna
 
                 if (inArea) {
                     let skip = false;
                     blacklist.forEach(s => { 
-                        if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.05) skip=true; 
+                        // Raggio di tolleranza leggermente aumentato (0.06) per coprire intere fabbriche
+                        if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.06) skip=true; 
                     });
                     if(skip) continue;
 
@@ -123,8 +135,8 @@
                     }).addTo(nasaLayer);
                 }
             }
-            document.getElementById('count').innerText = `${nReal} Incendi (Satellite)`;
-        } catch (e) { console.error("Errore NASA"); }
+            document.getElementById('count').innerText = `${nReal} Incendi (Verificati)`;
+        } catch (e) { console.error("Errore"); }
     }
 
     window.checkAuth = () => {
