@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA - PRO TOTAL</title>
+    <title>MONITORAGGIO INCENDI ITALIA - V3 FINAL</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -19,30 +19,18 @@
 
         .legend { 
             background: rgba(255, 255, 255, 0.9); 
-            padding: 10px; 
-            border-radius: 8px; 
+            padding: 10px; border-radius: 8px; 
             box-shadow: 0 0 15px rgba(0,0,0,0.5); 
-            line-height: 24px; 
-            color: #333; 
-            font-size: 13px;
-            font-weight: bold;
+            line-height: 24px; color: #333; font-size: 13px; font-weight: bold;
         }
-        .legend i { width: 18px; text-align: center; margin-right: 8px; }
 
-        /* Stili per il Righello */
         .ruler-btn {
-            background: white;
-            width: 34px; height: 34px; line-height: 34px;
-            text-align: center; cursor: pointer;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            background: white; width: 34px; height: 34px; line-height: 34px;
+            text-align: center; cursor: pointer; box-shadow: 0 1px 5px rgba(0,0,0,0.4);
             border-radius: 4px; color: #333; font-size: 16px;
         }
         .ruler-btn.active { background: #e74c3c; color: white; }
-        .distance-label {
-            background: rgba(0,0,0,0.8); color: white;
-            padding: 2px 6px; border-radius: 4px; font-size: 12px;
-            white-space: nowrap;
-        }
+        .distance-label { background: rgba(0,0,0,0.8); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -50,7 +38,7 @@
 <header>
     <div id="stat">
         🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
-        <span class="sub-stat" id="area-est">Calcolo superficie stimata...</span>
+        <span class="sub-stat" id="area-est">Caricamento dati...</span>
     </div>
     <div class="login-box">
         <button class="btn-news" onclick="openNewsMenu()">NOTIZIE RAPIDE</button>
@@ -64,11 +52,10 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
@@ -82,39 +69,20 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    // --- LAYER BASE ---
-    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri World Imagery', maxZoom: 19
-    });
-
-    const topografica = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 17, attribution: 'OpenTopoMap'
-    });
+    // --- MAP LAYERS ---
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+    const topografica = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 });
 
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
 
-    // --- NUOVO: DEFINIZIONE CONFINE POLITICO ITALIA PER CLIPPING (Ritaglio) ---
-    const confiniPoligono = [
-        // Italia Continentale/Alpi (approx)
-        [46.85, 10.45], [46.75, 11.55], [46.60, 13.00], [46.00, 13.60], [45.85, 13.50], // Est
-        [44.75, 12.45], [42.00, 15.00], [40.20, 18.50], [39.75, 18.35], [39.70, 17.50], // Adriatico/Ionio
-        [37.90, 15.65], [39.50, 16.00], [41.25, 13.65], [43.60, 10.35], [44.40, 9.00],  // Tirreno Nord
-        [43.80, 7.50],  [44.80, 6.70],  [45.80, 6.80],  [46.40, 7.00],  [46.50, 8.50],  // Confine Ovest/Svizzera
-        // Sicilia (approx)
-        [37.85, 12.45], [38.20, 12.65], [38.15, 13.40], [38.10, 14.85], [38.25, 15.55], // Nord
-        [37.55, 15.20], [36.65, 15.10], [36.60, 14.95], [37.15, 13.45], [37.60, 12.35], // Sud
-        // Sardegna (approx)
-        [40.90, 8.20],  [41.25, 9.20],  [41.30, 9.40],  [40.10, 9.70],  [39.20, 9.55],  // Nord/Est
-        [38.85, 9.15],  [38.90, 8.65],  [39.15, 8.35],  [40.30, 8.35],  [40.85, 8.00],  // Sud/Ovest
-        // Isola d'Elba/Pantelleria/Lampedusa (approx)
-        [42.75, 10.15], [36.80, 11.95], [35.50, 12.60],
-        // Torna al punto iniziale continente
-        [46.85, 10.45]
-    ];
-    // Layer nascosto che definisce il confine italiano
-    const confiniItaliaGeoJSON = L.polygon(confiniPoligono, { color: 'transparent', fillColor: 'transparent' }).addTo(map);
+    const nasaLayer = L.layerGroup().addTo(map);
+    const cloudLayer = L.layerGroup().addTo(map);
 
-    // --- RIGHELLO (RULER) PLUGIN ---
+    L.control.layers({ "🛰️ Satellitare": satellite, "⛰️ Topografica": topografica }, 
+                     { "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer }, 
+                     { collapsed: false }).addTo(map);
+
+    // --- LOGICA RIGHELLO ---
     let rulerActive = false;
     let rulerPoints = [];
     let rulerLayers = L.layerGroup().addTo(map);
@@ -122,135 +90,118 @@
     const RulerControl = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function() {
-            const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-            const button = L.DomUtil.create('a', 'ruler-btn', container);
-            button.innerHTML = '<i class="fas fa-ruler-combined"></i>';
-            L.DomEvent.on(button, 'click', function(e) {
+            const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control ruler-btn');
+            btn.innerHTML = '<i class="fas fa-ruler-combined"></i>';
+            L.DomEvent.on(btn, 'click', (e) => {
                 L.DomEvent.stopPropagation(e);
                 rulerActive = !rulerActive;
-                if (rulerActive) { button.classList.add('active'); map.getContainer().style.cursor = 'crosshair'; }
-                else { button.classList.remove('active'); map.getContainer().style.cursor = ''; resetRuler(); }
+                btn.classList.toggle('active');
+                map.getContainer().style.cursor = rulerActive ? 'crosshair' : '';
+                if(!rulerActive) { rulerLayers.clearLayers(); rulerPoints = []; }
             });
-            return container;
+            return btn;
         }
     });
     map.addControl(new RulerControl());
-    function resetRuler() { rulerPoints = []; rulerLayers.clearLayers(); }
 
     map.on('click', (e) => {
         if (!rulerActive) return;
         rulerPoints.push(e.latlng);
-        L.circleMarker(e.latlng, { radius: 5, color: '#e74c3c' }).addTo(rulerLayers);
+        L.circleMarker(e.latlng, { radius: 4, color: 'red' }).addTo(rulerLayers);
         if (rulerPoints.length === 2) {
-            const dist = map.distance(rulerPoints[0], rulerPoints[1]);
-            const label = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
-            L.polyline(rulerPoints, { color: '#e74c3c', weight: 3, dashArray: '5, 10' }).addTo(rulerLayers);
-            L.marker(e.latlng, { icon: L.divIcon({ className: 'distance-label', html: label, iconAnchor: [-10, 20] }) }).addTo(rulerLayers);
+            const d = map.distance(rulerPoints[0], rulerPoints[1]);
+            const txt = d > 1000 ? (d/1000).toFixed(2) + " km" : Math.round(d) + " m";
+            L.polyline(rulerPoints, { color: 'red', weight: 2, dashArray: '5,5' }).addTo(rulerLayers);
+            L.marker(e.latlng, { icon: L.divIcon({ className: 'distance-label', html: txt, iconAnchor: [-10, 20] }) }).addTo(rulerLayers);
             rulerPoints = [e.latlng];
         }
     });
 
-    // --- RISCHIO STORICO ---
-    const riskLayer = L.layerGroup();
-    const riskZones = [
-        {lat: 40.1, lon: 9.1, r: 80000}, {lat: 37.5, lon: 14.2, r: 90000},
-        {lat: 39.0, lon: 16.5, r: 60000}, {lat: 41.2, lon: 15.5, r: 50000},
-        {lat: 42.3, lon: 13.5, r: 40000}, {lat: 43.5, lon: 11.0, r: 35000},
-        {lat: 40.5, lon: 17.5, r: 45000}
-    ];
-    riskZones.forEach(z => L.circle([z.lat, z.lon], { radius: z.r, color: 'orange', fillColor: '#f03', fillOpacity: 0.15, weight: 1, interactive: false }).addTo(riskLayer));
+    // --- FUNZIONI DI FILTRAGGIO ---
+    function isOutsideItaly(lat, lon) {
+        // Filtro 1: Confini Generali Rettangolari
+        if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.6) return true;
 
-    const nasaLayer = L.layerGroup().addTo(map);
-    const cloudLayer = L.layerGroup().addTo(map);
+        // Filtro 2: Esclusione Mirata Tunisia/Mare (Senza tagliare Sicilia/Lampedusa)
+        if (lat < 37.4 && lon < 12.0) return true; 
 
-    const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
-    const overlayMaps = { "⚠️ Rischio Storico": riskLayer, "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer };
-    L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
-    
-    // Blacklist ridotta solo per falsi positivi INTERNI (Raffinerie/Acciaierie Italiane)
+        // Filtro 3: Esclusione Balcani / Mare Adriatico Est
+        if (lat < 46.0 && lon > 13.7) {
+            if (lat < 42.0 && lon > 15.1) return true; // Costa Croata/Albanese
+            if (lat >= 42.0 && lon > 13.7) return true;
+        }
+        
+        // Filtro 4: Esclusione Francia / Svizzera (Confine Nord-Ovest)
+        if (lat > 43.5 && lon < 7.0) return true;
+
+        return false;
+    }
+
     const blacklist = [
         {lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, 
-        {lat:37.20, lon:15.17}, {lat:40.48, lon:17.22}  // Esempio: Taranto/Priolo/Ravenna
+        {lat:37.20, lon:15.17}, {lat:45.47, lon:10.22}, {lat:40.48, lon:17.22}
     ];
 
     function toDMS(deg, pos, neg) {
-        const absolute = Math.abs(deg);
-        const d = Math.floor(absolute);
-        const m = Math.floor((absolute - d) * 60);
-        const s = ((absolute - d - m / 60) * 3600).toFixed(1);
-        return `${d}° ${m}' ${s}" ${deg >= 0 ? pos : neg}`;
+        const abs = Math.abs(deg);
+        const d = Math.floor(abs), m = Math.floor((abs - d) * 60), s = ((abs - d - m / 60) * 3600).toFixed(1);
+        return `${d}°${m}'${s}"${deg >= 0 ? pos : neg}`;
     }
 
+    // --- CARICAMENTO DATI NASA ---
     async function loadNasaData() {
         try {
             const res = await fetch(`https://corsproxy.io/?https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`);
             const csv = await res.text();
             const lines = csv.split('\n');
             let nReal = 0;
-            let totalAreaHectares = 0;
-            const AREA_PER_PIXEL = 14.06;
+            let totalHa = 0;
 
             nasaLayer.clearLayers();
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
                 if (c.length < 3) continue;
-                
-                const lat = parseFloat(c[0]);
-                const lon = parseFloat(c[1]);
+                const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
 
-                // --- NUOVO: RITAGLIO CONFINE ITALIANO (Leaflet-PIP) ---
-                const puntoInItalia = leafletPip.pointInLayer([lon, lat], confiniItaliaGeoJSON);
-                
-                // Se il punto è VUOTO (fuori dall'Italia), skippiamo
-                if (puntoInItalia.length === 0) continue;
+                // Applica i filtri geografici
+                if (isOutsideItaly(lat, lon)) continue;
 
-                // --- Blacklist interna (Raffinerie/Poli Industriali) ---
-                let skipBlacklist = false;
-                blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.06) skipBlacklist=true; });
-                if(skipBlacklist) continue;
+                // Blacklist industriale
+                let skip = false;
+                blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08) skip=true; });
+                if(skip) continue;
 
                 nReal++;
-                totalAreaHectares += AREA_PER_PIXEL;
+                totalHa += 14.06;
                 
-                const info = `<div style="font-size:11px;"><b>SITO:</b> Incendio Attivo<br><b>AREA STIMATA:</b> ~14 ha<br><b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}</div>`;
+                const popup = `<div style="font-size:11px;"><b>SITO:</b> Incendio Attivo<br><b>AREA:</b> ~14 ha<br><b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}</div>`;
                 
-                // Ripristino Fiamma + Cerchio Area
                 L.circle([lat, lon], { color: 'red', weight: 1, fillColor: '#f03', fillOpacity: 0.3, radius: 375 }).addTo(nasaLayer);
                 L.marker([lat, lon], { 
                     icon: L.divIcon({ 
                         html: `<i class="fas fa-fire" style="color:#ff4500; font-size:20px; text-shadow: 0 0 5px #000;"></i>`, 
-                        className: 'fire-icon',
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
+                        className: 'fire-icon', iconSize: [20, 20], iconAnchor: [10, 10]
                     }) 
-                }).addTo(nasaLayer).bindPopup(info);
+                }).addTo(nasaLayer).bindPopup(popup);
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
-            document.getElementById('area-est').innerText = `Superficie colpita stimata: ${totalAreaHectares.toLocaleString('it-IT')} Ettari (ha)`;
+            document.getElementById('area-est').innerText = `Superficie colpita stimata: ${totalHa.toLocaleString('it-IT')} Ettari (ha)`;
         } catch (e) { console.error("Errore NASA"); }
     }
 
-    // --- UTILS ---
+    // --- FUNZIONI OPERATORE ---
     window.openNewsMenu = () => {
-        const scelta = prompt("1-VVF | 2-Prot. Civile | 3-AIB", "1");
-        if (scelta === "1") window.open('https://www.vigilfuoco.it/media/notizie/dal-territorio', '_blank');
-        else if (scelta === "2") window.open('https://www.iononrischio.gov.it/it/preparati/incendi-boschivi/', '_blank');
-        else if (scelta === "3") window.open('http://www.pcn.minambiente.it/viewer/index.php?services=AIB_Incendi_PNZ', '_blank');
+        const s = prompt("1-VVF | 2-Prot. Civile | 3-AIB", "1");
+        if (s === "1") window.open('https://www.vigilfuoco.it/media/notizie/dal-territorio', '_blank');
+        if (s === "2") window.open('https://www.iononrischio.gov.it/it/preparati/incendi-boschivi/', '_blank');
+        if (s === "3") window.open('http://www.pcn.minambiente.it/viewer/index.php?services=AIB_Incendi_PNZ', '_blank');
     };
 
     window.checkAuth = () => {
-        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
-        else alert("Codice errato");
+        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
+            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
+        } else alert("Codice errato");
     };
-
-    const legend = L.control({position: 'bottomleft'});
-    legend.onAdd = function () {
-        const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `<div><i class="fas fa-fire" style="color:#d73027"></i> Incendio Attivo</div>
-                         <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>`;
-        return div;
-    };
-    legend.addTo(map);
 
     window.onload = () => {
         loadNasaData();
@@ -258,7 +209,7 @@
             cloudLayer.clearLayers();
             snap.forEach(doc => {
                 const d = doc.data();
-                L.marker([d.lat, d.lon], { icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' }) }).addTo(cloudLayer);
+                L.marker([d.lat, d.lon], { icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>` }) }).addTo(cloudLayer);
             });
         });
         setInterval(loadNasaData, 600000); 
