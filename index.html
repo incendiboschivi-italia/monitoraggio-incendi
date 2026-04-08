@@ -112,17 +112,17 @@
                 if (c.length < 3) continue;
                 const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
                 
-                // FILTRO ULTRA-RESTRITTIVO
-                // Latitudine minima alzata a 37.5 per eliminare la Tunisia
-                let inArea = (lat > 37.5 && lat < 47.1) && (lon > 6.6 && lon < 18.6);
+                // FILTRO MASSIMO RIGORE - TAGLIO BALCANI
+                // Abbiamo ristretto la longitudine Est a 18.0 (prima era 18.6)
+                let inArea = (lat > 37.5 && lat < 47.1) && (lon > 6.6 && lon < 18.0);
                 
-                // Eccezione per il Sud della Sicilia (che scende fino a 36.6)
+                // Eccezione per il Sud della Sicilia
                 if (lat > 36.6 && lat < 37.5 && lon > 12.0 && lon < 15.5) inArea = true;
 
-                // Tagli Nord ed Est
-                if (lat > 46.8 && lon < 11.0) inArea = false; 
-                if (lon > 13.8 && lat > 45.4) inArea = false; 
-                if (lon > 18.0 && lat > 40.0) inArea = false;
+                // TAGLI CHIRURGICI AGGIUNTIVI
+                if (lon > 13.5 && lat > 45.4) inArea = false; // Taglia Istria/Slovenia
+                if (lon > 14.5 && lat > 42.0) inArea = false; // Taglia Croazia centrale
+                if (lon > 18.1 && lat < 41.0) inArea = false; // Taglia Albania alta
 
                 if (inArea) {
                     let skip = false;
