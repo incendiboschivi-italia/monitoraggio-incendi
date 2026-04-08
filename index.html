@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA</title>
+    <title>MONITORAGGIO INCENDI ITALIA - SISTEMA INTEGRATO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -11,14 +11,14 @@
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 1000; border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
-        #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
-        .sub-stat { font-size: 0.75em; color: #ffa500; display: block; }
+        #stat { font-weight: bold; font-size: 1.1em; color: #fff; line-height: 1.2; }
+        .sub-stat { font-size: 0.7em; color: #ffa500; display: block; }
 
-        /* Cerchio pulsante delle fiamme */
+        /* Effetto Radar Pulsante */
         @keyframes pulse {
-            0% { transform: scale(0.9); opacity: 0.7; }
-            50% { transform: scale(1.3); opacity: 0.3; }
-            100% { transform: scale(0.9); opacity: 0.7; }
+            0% { transform: scale(0.8); opacity: 0.8; }
+            50% { transform: scale(1.5); opacity: 0.2; }
+            100% { transform: scale(0.8); opacity: 0.8; }
         }
         .fire-pulse {
             width: 40px; height: 40px; background: rgba(255, 69, 0, 0.4);
@@ -27,16 +27,18 @@
             animation: pulse 1.5s infinite; pointer-events: none;
         }
 
-        /* Legenda */
+        /* Legenda Doppia */
         .info.legend {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px; line-height: 18px; color: #333;
-            border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3); line-height: 20px; font-size: 12px;
         }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.9; }
+        .legend i { width: 16px; height: 16px; float: left; margin-right: 8px; }
 
-        .weather-widget { border-top: 1px solid #eee; margin-top: 8px; padding-top: 8px; }
-        .risk-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; color: white; font-weight: bold; margin-top: 5px; }
+        .weather-widget { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 8px; }
+        .risk-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; color: white; font-weight: bold; margin-top: 5px; font-size: 10px; }
+        
+        .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 10px; }
+        .btn-login { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -44,9 +46,15 @@
 <header>
     <div id="stat">
         🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
-        <span class="sub-stat" id="area-est">Caricamento dati...</span>
+        <span class="sub-stat" id="area-est">Calcolo superficie stimata...</span>
     </div>
-    <button style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="alert('Sistema di Allerta Nazionale v3.2 - Filtri Attivi')">INFO SISTEMA</button>
+    <div style="display: flex; align-items: center;">
+        <button class="btn-news" onclick="openNewsMenu()">NOTIZIE RAPIDE</button>
+        <div id="login-section">
+            <input type="password" id="operator-code" placeholder="Codice" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:90px; margin-right: 5px;">
+            <button class="btn-login" onclick="checkAuth()">ENTRA</button>
+        </div>
+    </div>
 </header>
 
 <div id="map"></div>
@@ -54,42 +62,37 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-    const weatherKey = "b1b15e88fa7972254124651173e936f6";
+    // Configurazione Mappe
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+    const topografica = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 });
+
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
     const nasaLayer = L.layerGroup().addTo(map);
 
-    // --- LEGENDA ---
+    // Selettore Layer
+    const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
+    L.control.layers(baseMaps, { "🔥 Incendi NASA": nasaLayer }, { collapsed: false }).addTo(map);
+
+    // Legenda Doppia
     const legend = L.control({position: 'bottomleft'});
-    legend.onAdd = function () {
+    legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'info legend');
         div.innerHTML = `
-            <div style="margin-bottom:5px;"><i class="fas fa-fire" style="color:#ff4500"></i> Incendio Attivo</div>
+            <div><i class="fas fa-fire" style="color:#ff4500"></i> Incendio Attivo</div>
             <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>
         `;
         return div;
     };
     legend.addTo(map);
 
-    // --- LOGICA FILTRI ---
-    const blacklist = [
-        {lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, // Raffinerie/Industrie note
-        {lat:44.78, lon:10.73}, {lat:37.20, lon:15.17}, 
-        {lat:40.48, lon:17.22}
-    ];
-
-    function isOutsideItaly(lat, lon) {
-        // Confini rettangolari approssimativi per l'Italia
-        if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.6) return true;
-        // Filtro aggiuntivo per escludere i Balcani e l'Africa dal conteggio
-        if (lat < 37.4 && lon < 12.0) return true; // Tunisia
-        if (lat < 46.0 && lon > 13.7) {
-            if (lat < 42.0 && lon > 15.1) return true; // Croazia/Montenegro
-            if (lat >= 42.0 && lon > 13.7) return true; // Slovenia/Austria
-        }
-        return false;
+    // Funzione Coordinate in DMS
+    function toDMS(deg, pos, neg) {
+        const abs = Math.abs(deg);
+        const d = Math.floor(abs), m = Math.floor((abs-d)*60), s = ((abs-d-m/60)*3600).toFixed(1);
+        return `${d}°${m}'${s}"${deg >= 0 ? pos : neg}`;
     }
 
+    // Indice di Rischio (FWI)
     function getRiskLevel(temp, hum) {
         let risk = (temp * 0.5) - (hum * 0.2);
         if (risk > 15) return { txt: "MOLTO ALTO", col: "#c0392b" };
@@ -97,6 +100,20 @@
         if (risk > 5) return { txt: "MEDIO", col: "#f1c40f" };
         return { txt: "BASSO", col: "#27ae60" };
     }
+
+    // Blacklist e Filtro Italia
+    const blacklist = [{lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, {lat:37.20, lon:15.17}, {lat:40.48, lon:17.22}];
+    function isOutsideItaly(lat, lon) {
+        if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.6) return true;
+        if (lat < 37.4 && lon < 12.0) return true; 
+        if (lat < 46.0 && lon > 13.7) {
+            if (lat < 42.0 && lon > 15.1) return true;
+            if (lat >= 42.0 && lon > 13.7) return true;
+        }
+        return false;
+    }
+
+    const weatherKey = "b1b15e88fa7972254124651173e936f6";
 
     async function loadNasaData() {
         try {
@@ -112,56 +129,68 @@
                 if (c.length < 3) continue;
                 const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
                 
-                // 1. FILTRO ITALIA
                 if (isOutsideItaly(lat, lon)) continue;
-
-                // 2. FILTRO BLACKLIST (Raffinerie ecc.)
                 if (blacklist.some(s => Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08)) continue;
 
                 nReal++;
                 const pId = `p-${i}`;
                 
-                const customIcon = L.divIcon({
-                    html: `<div class="fire-pulse"></div><i class="fas fa-fire" style="color:#ff4500; font-size:20px; position:relative; z-index:10;"></i>`,
-                    className: 'fire-marker', iconSize: [20, 20], iconAnchor: [10, 10]
-                });
-
-                const marker = L.marker([lat, lon], { icon: customIcon }).addTo(nasaLayer);
+                const marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: `<div class="fire-pulse"></div><i class="fas fa-fire" style="color:#ff4500; font-size:20px; position:relative; z-index:10;"></i>`,
+                        className: 'fire-marker', iconSize:[20,20], iconAnchor:[10,10]
+                    })
+                }).addTo(nasaLayer);
 
                 marker.bindPopup(`
-                    <div style="font-size:12px; width:180px;">
+                    <div style="font-size:11px; width:190px;">
                         <b>SITO:</b> Vegetazione/Bosco<br>
                         <b>AREA:</b> ~14 ha<br>
-                        <b>COORDS:</b> ${lat.toFixed(3)}, ${lon.toFixed(3)}
+                        <b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
                         <div id="${pId}" class="weather-widget">
-                            <i class="fas fa-sync fa-spin"></i> Analisi rischio...
+                            <i class="fas fa-sync fa-spin"></i> Analisi rischio in corso...
                         </div>
-                    </div>
-                `);
+                    </div>`);
 
                 marker.on('popupopen', async () => {
                     try {
                         const wRes = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric&lang=it`));
                         const w = await wRes.json();
                         const risk = getRiskLevel(w.main.temp, w.main.humidity);
-                        
                         document.getElementById(pId).innerHTML = `
-                            <div style="margin-bottom:4px;"><i class="fas fa-thermometer-half"></i> ${w.main.temp}°C | <i class="fas fa-tint"></i> ${w.main.humidity}%</div>
-                            <div style="font-size:10px; color:#666;">RISCHIO INCENDIO:</div>
-                            <div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>
-                        `;
-                    } catch (e) {
-                        document.getElementById(pId).innerHTML = "Meteo non disponibile";
-                    }
+                            <div style="margin-bottom:4px;"><i class="fas fa-thermometer-half"></i> ${w.main.temp.toFixed(1)}°C | <i class="fas fa-tint"></i> ${w.main.humidity}%</div>
+                            <div style="font-size:10px; color:#666; font-weight:bold;">RISCHIO INCENDIO (FWI):</div>
+                            <div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>`;
+                    } catch (e) { document.getElementById(pId).innerHTML = "Meteo non disponibile"; }
                 });
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
-            document.getElementById('area-est').innerText = `Superficie stimata in Italia: ${(nReal * 14.06).toLocaleString()} ha`;
-        } catch (e) { console.log("Errore dati"); }
+            document.getElementById('area-est').innerText = `Superficie stimata in Italia: ${(nReal * 14.06).toFixed(2)} ha`;
+        } catch (e) { console.log("Errore aggiornamento dati NASA"); }
     }
 
+    // Menu Notizie Rapide
+    window.openNewsMenu = () => {
+        const s = prompt("1-Vigilfuoco | 2-Prot. Civile | 3-AIB | 4-Meteo Aeronautica", "1");
+        const urls = {
+            "1":"https://www.vigilfuoco.it/media/notizie/dal-territorio", 
+            "2":"https://www.iononrischio.gov.it", 
+            "3":"http://www.pcn.minambiente.it",
+            "4":"http://www.meteoam.it"
+        };
+        if(urls[s]) window.open(urls[s], '_blank');
+    };
+
+    // Login Operatore
+    window.checkAuth = () => {
+        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
+            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71; margin-left:10px;'>⭐ OPERATIVO</b>";
+        } else alert("Accesso Negato");
+    };
+
+    // Esecuzione Iniziale e Auto-Refresh (10 minuti)
     loadNasaData();
-    setInterval(loadNasaData, 600000);
+    setInterval(loadNasaData, 600000); 
 </script>
 </body>
 </html>
