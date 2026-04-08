@@ -27,12 +27,14 @@
             animation: pulse 1.5s infinite; pointer-events: none;
         }
 
-        /* Legenda Doppia */
+        /* Legenda Doppia e Intensità */
         .info.legend {
             background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3); line-height: 20px; font-size: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3); line-height: 18px; font-size: 11px;
+            max-width: 200px;
         }
-        .legend i { width: 16px; height: 16px; float: left; margin-right: 8px; }
+        .legend b { display: block; margin-bottom: 5px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+        .legend i { width: 14px; height: 14px; float: left; margin-right: 8px; border-radius: 2px; }
 
         .weather-widget { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 8px; }
         .risk-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; color: white; font-weight: bold; margin-top: 5px; font-size: 10px; }
@@ -73,13 +75,20 @@
     const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
     L.control.layers(baseMaps, { "🔥 Incendi NASA": nasaLayer }, { collapsed: false }).addTo(map);
 
-    // Legenda Doppia
+    // Legenda Doppia e Intensità
     const legend = L.control({position: 'bottomleft'});
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'info legend');
         div.innerHTML = `
-            <div><i class="fas fa-fire" style="color:#ff4500"></i> Incendio Attivo</div>
-            <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>
+            <b>TIPOLOGIA ALERT</b>
+            <div><i class="fas fa-fire" style="color:#ff4500; font-size:12px;"></i> Incendio Attivo</div>
+            <div style="margin-bottom:8px;"><i class="fas fa-camera" style="color:purple; font-size:12px;"></i> Alert Operativo</div>
+            
+            <b>INTENSITÀ RISCHIO</b>
+            <div><i style="background:#c0392b"></i> Molto Alto</div>
+            <div><i style="background:#e67e22"></i> Alto</div>
+            <div><i style="background:#f1c40f"></i> Medio</div>
+            <div><i style="background:#27ae60"></i> Basso</div>
         `;
         return div;
     };
@@ -134,6 +143,7 @@
 
                 nReal++;
                 const pId = `p-${i}`;
+                const tId = `type-${i}`;
                 
                 const marker = L.marker([lat, lon], {
                     icon: L.divIcon({
@@ -144,7 +154,7 @@
 
                 marker.bindPopup(`
                     <div style="font-size:11px; width:190px;">
-                        <b>SITO:</b> Vegetazione/Bosco<br>
+                        <b>SITO:</b> <span id="${tId}">Verifica in corso...</span><br>
                         <b>AREA:</b> ~14 ha<br>
                         <b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
                         <div id="${pId}" class="weather-widget">
@@ -157,11 +167,23 @@
                         const wRes = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric&lang=it`));
                         const w = await wRes.json();
                         const risk = getRiskLevel(w.main.temp, w.main.humidity);
+                        
+                        // Logica Bosco o Altro: Se rischio alto e temp elevata, classifichiamo come Bosco
+                        const typeEl = document.getElementById(tId);
+                        if (risk.txt === "MOLTO ALTO" || risk.txt === "ALTO") {
+                            typeEl.innerText = "Bosco / Forestale";
+                        } else {
+                            typeEl.innerText = "Vegetazione / Sterpaglie";
+                        }
+
                         document.getElementById(pId).innerHTML = `
                             <div style="margin-bottom:4px;"><i class="fas fa-thermometer-half"></i> ${w.main.temp.toFixed(1)}°C | <i class="fas fa-tint"></i> ${w.main.humidity}%</div>
                             <div style="font-size:10px; color:#666; font-weight:bold;">RISCHIO INCENDIO (FWI):</div>
                             <div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>`;
-                    } catch (e) { document.getElementById(pId).innerHTML = "Meteo non disponibile"; }
+                    } catch (e) { 
+                        document.getElementById(pId).innerHTML = "Meteo non disponibile";
+                        document.getElementById(tId).innerText = "Vegetazione";
+                    }
                 });
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
