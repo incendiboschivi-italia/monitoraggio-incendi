@@ -21,11 +21,11 @@
 <body>
 
 <header>
-    <div id="stat">🇮🇹 MONITORAGGIO ITALIA: <span id="count">Filtro attivo...</span></div>
+    <div id="stat">🇮🇹 MONITORAGGIO ITALIA: <span id="count">Inizializzazione...</span></div>
     <div class="login-box">
         <button class="btn-news" onclick="window.open('https://www.vigilfuoco.tv/notizie')">NOTIZIE RAPIDE</button>
         <div id="login-section">
-            <input type="password" id="operator-code" placeholder="Codice" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:100px;">
+            <input type="password" id="operator-code" placeholder="Codice" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:100px; margin-right: 5px;">
             <button class="btn-login" onclick="checkAuth()">ENTRA</button>
         </div>
     </div>
@@ -36,13 +36,27 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
+        authDomain: "monitoraggioincendi-41f5f.firebaseapp.com",
+        projectId: "monitoraggioincendi-41f5f",
+        storageBucket: "monitoraggioincendi-41f5f.firebasestorage.app",
+        messagingSenderId: "63942195354",
+        appId: "1:63942195354:web:cc5bb978858676c6748723"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const nasaLayer = L.layerGroup().addTo(map);
+    const cloudLayer = L.layerGroup().addTo(map);
     
-    // Lista siti industriali/falsi positivi
-    const blacklist = [{lat:45.1,lon:7.51},{lat:45.45,lon:10.49},{lat:37.5,lon:15.0}];
+    const blacklist = [{lat:45.1,lon:7.51},{lat:45.45,lon:10.49},{lat:37.5,lon:15.0},{lat:44.29,lon:8.44}];
 
     async function loadNasaData() {
         try {
@@ -58,23 +72,25 @@
                 const lat = parseFloat(c[0]);
                 const lon = parseFloat(c[1]);
 
-                // --- NUOVO FILTRO "MURO D'ACCIAIO" ---
+                // --- LOGICA SCUDO ITALIA (INTEGRATA) ---
                 let inArea = false;
 
-                // 1. Accetta solo se è sopra la Tunisia (sopra 37.5)
-                if (lat > 37.5 && lat < 47.1 && lon > 6.6 && lon < 18.5) {
+                // 1. NORD (Taglio Svizzera/Slovenia)
+                if (lat > 44.0 && lat < 47.1) {
+                    if (lon > 6.6 && lon < 13.6) inArea = true;
+                }
+                // 2. CENTRO-SUD (Taglio Balcani/Bosnia)
+                else if (lat > 37.5 && lat <= 44.0) {
+                    if (lon > 8.0 && lon < 18.0) inArea = true;
+                }
+                // 3. SICILIA (Taglio Chirurigo Anti-Tunisia)
+                else if (lat > 36.5 && lat <= 37.5) {
+                    if (lon > 12.1 && lon < 15.6) inArea = true;
+                }
+                // 4. SARDEGNA
+                else if (lat > 38.8 && lat < 41.3 && lon > 8.0 && lon < 10.0) {
                     inArea = true;
                 }
-                
-                // 2. Regola speciale per la punta della Sicilia (che scende fino a 36.6)
-                // Ma solo se siamo esattamente nell'area della Sicilia
-                if (lat > 36.6 && lat <= 37.5 && lon > 12.2 && lon < 15.6) {
-                    inArea = true;
-                }
-
-                // 3. Blocchi per Svizzera e Balcani
-                if (lat > 46.2 && lon < 10.5) inArea = false; // Svizzera
-                if (lon > 13.6 && lat > 45.3) inArea = false; // Croazia/Fiume
 
                 if (inArea) {
                     let skip = false;
@@ -90,16 +106,38 @@
                 }
             }
             document.getElementById('count').innerText = `${nReal} Incendi in Italia`;
-        } catch (e) { console.error("Errore caricamento"); }
+        } catch (e) { console.error("Errore NASA"); }
+    }
+
+    function loadCloudData() {
+        onSnapshot(query(collection(db, "segnalazioni"), orderBy("timestamp", "desc")), (snap) => {
+            cloudLayer.clearLayers();
+            snap.forEach(doc => {
+                const d = doc.data();
+                L.marker([d.lat, d.lon], { icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' }) })
+                 .addTo(cloudLayer).bindPopup(`<b>Staff:</b><br>${d.desc}`);
+            });
+        });
     }
 
     window.checkAuth = () => {
         if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ ATTIVO</b>";
-        }
+            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
+        } else { alert("Codice errato"); }
     };
 
-    window.onload = () => { loadNasaData(); setInterval(loadNasaData, 600000); };
+    map.on('click', async (e) => {
+        if (document.getElementById('login-section').innerHTML.includes("OPERATIVO")) {
+            const desc = prompt("Inserisci descrizione incendio:");
+            if (desc) await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() });
+        }
+    });
+
+    window.onload = () => {
+        loadNasaData();
+        loadCloudData();
+        setInterval(loadNasaData, 600000); // 10 min
+    };
 </script>
 </body>
 </html>
