@@ -17,7 +17,7 @@
         /* Cerchio pulsante delle fiamme */
         @keyframes pulse {
             0% { transform: scale(0.9); opacity: 0.7; }
-            50% { transform: scale(1.2); opacity: 0.3; }
+            50% { transform: scale(1.3); opacity: 0.3; }
             100% { transform: scale(0.9); opacity: 0.7; }
         }
         .fire-pulse {
@@ -26,6 +26,14 @@
             position: absolute; margin-left: -10px; margin-top: -10px;
             animation: pulse 1.5s infinite; pointer-events: none;
         }
+
+        /* Legenda */
+        .info.legend {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px; line-height: 18px; color: #333;
+            border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.9; }
 
         .weather-widget { border-top: 1px solid #eee; margin-top: 8px; padding-top: 8px; }
         .risk-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; color: white; font-weight: bold; margin-top: 5px; }
@@ -38,9 +46,7 @@
         🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
         <span class="sub-stat" id="area-est">Caricamento dati...</span>
     </div>
-    <div>
-        <button style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="alert('Sistema di Allerta Nazionale v3.1')">INFO SISTEMA</button>
-    </div>
+    <button style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="alert('Sistema di Allerta Nazionale v3.2 - Filtri Attivi')">INFO SISTEMA</button>
 </header>
 
 <div id="map"></div>
@@ -52,6 +58,37 @@
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
     const nasaLayer = L.layerGroup().addTo(map);
+
+    // --- LEGENDA ---
+    const legend = L.control({position: 'bottomleft'});
+    legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'info legend');
+        div.innerHTML = `
+            <div style="margin-bottom:5px;"><i class="fas fa-fire" style="color:#ff4500"></i> Incendio Attivo</div>
+            <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>
+        `;
+        return div;
+    };
+    legend.addTo(map);
+
+    // --- LOGICA FILTRI ---
+    const blacklist = [
+        {lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, // Raffinerie/Industrie note
+        {lat:44.78, lon:10.73}, {lat:37.20, lon:15.17}, 
+        {lat:40.48, lon:17.22}
+    ];
+
+    function isOutsideItaly(lat, lon) {
+        // Confini rettangolari approssimativi per l'Italia
+        if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.6) return true;
+        // Filtro aggiuntivo per escludere i Balcani e l'Africa dal conteggio
+        if (lat < 37.4 && lon < 12.0) return true; // Tunisia
+        if (lat < 46.0 && lon > 13.7) {
+            if (lat < 42.0 && lon > 15.1) return true; // Croazia/Montenegro
+            if (lat >= 42.0 && lon > 13.7) return true; // Slovenia/Austria
+        }
+        return false;
+    }
 
     function getRiskLevel(temp, hum) {
         let risk = (temp * 0.5) - (hum * 0.2);
@@ -75,13 +112,15 @@
                 if (c.length < 3) continue;
                 const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
                 
-                // Filtro Italia approssimativo
-                if (lat < 35 || lat > 47 || lon < 6 || lon > 19) continue;
+                // 1. FILTRO ITALIA
+                if (isOutsideItaly(lat, lon)) continue;
+
+                // 2. FILTRO BLACKLIST (Raffinerie ecc.)
+                if (blacklist.some(s => Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08)) continue;
 
                 nReal++;
                 const pId = `p-${i}`;
                 
-                // Icona fiamma + Cerchio pulsante
                 const customIcon = L.divIcon({
                     html: `<div class="fire-pulse"></div><i class="fas fa-fire" style="color:#ff4500; font-size:20px; position:relative; z-index:10;"></i>`,
                     className: 'fire-marker', iconSize: [20, 20], iconAnchor: [10, 10]
@@ -95,7 +134,7 @@
                         <b>AREA:</b> ~14 ha<br>
                         <b>COORDS:</b> ${lat.toFixed(3)}, ${lon.toFixed(3)}
                         <div id="${pId}" class="weather-widget">
-                            <i class="fas fa-sync fa-spin"></i> Analisi rischio in corso...
+                            <i class="fas fa-sync fa-spin"></i> Analisi rischio...
                         </div>
                     </div>
                 `);
@@ -108,17 +147,17 @@
                         
                         document.getElementById(pId).innerHTML = `
                             <div style="margin-bottom:4px;"><i class="fas fa-thermometer-half"></i> ${w.main.temp}°C | <i class="fas fa-tint"></i> ${w.main.humidity}%</div>
-                            <div style="font-size:10px; color:#666;">INDICE RISCHIO (FWI):</div>
+                            <div style="font-size:10px; color:#666;">RISCHIO INCENDIO:</div>
                             <div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>
                         `;
                     } catch (e) {
-                        document.getElementById(pId).innerHTML = "Dati meteo non disponibili";
+                        document.getElementById(pId).innerHTML = "Meteo non disponibile";
                     }
                 });
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
-            document.getElementById('area-est').innerText = `Superficie stimata: ${(nReal * 14.06).toLocaleString()} ha`;
-        } catch (e) { console.log("Errore caricamento"); }
+            document.getElementById('area-est').innerText = `Superficie stimata in Italia: ${(nReal * 14.06).toLocaleString()} ha`;
+        } catch (e) { console.log("Errore dati"); }
     }
 
     loadNasaData();
