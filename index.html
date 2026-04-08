@@ -14,14 +14,16 @@
         .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .legend { background: rgba(255, 255, 255, 0.95); padding: 12px; border-radius: 10px; color: black; font-size: 13px; box-shadow: 0 0 15px rgba(0,0,0,0.6); }
         .legend i { width: 18px; height: 18px; float: left; margin-right: 10px; text-align: center; }
-        #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
+        #stat { font-weight: bold; font-size: 1.1em; color: #fff; display: flex; align-items: center; }
+        /* Stile opzionale per l'emoji se vuoi regolarne la dimensione/posizione */
+        #stat span.flag { margin-right: 10px; font-size: 1.3em; } 
         .f-icon { display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
 <header>
-    <div id="stat">🇮🇹 MONITORAGGIO INCENDI ITALIA: <span id="count">Inserire Codice</span></div>
+    <div id="stat"><span class="flag">🇮🇹</span> MONITORAGGIO INCENDI ITALIA: <span id="count">Inserire Codice</span></div>
     <div id="login-section" class="login-box">
         <input type="password" id="operator-code" placeholder="Codice Operatore">
         <button onclick="checkAuth()">ENTRA</button>
@@ -53,7 +55,7 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // BLACKLIST RIMOZIONE TOTALE (Falsi positivi industriali e vulcanici rimossi permanentemente)
+    // BLACKLIST RIMOZIONE TOTALE (Mantenuta per Augusta, Brindisi, Siniscola, ecc.)
     const blacklist = [
         {lat: 45.10, lon: 7.51,  name: "Ferriere Nord Rivoli"},
         {lat: 45.45, lon: 10.49, name: "Feralpi Siderurgica Lonato"},
