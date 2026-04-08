@@ -53,9 +53,10 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // BLACKLIST RIMozione TOTALE (Questi punti non verranno mai disegnati)
+    // BLACKLIST RIMOZIONE TOTALE (Nessuna icona, nessun conteggio)
     const blacklist = [
-        {lat: 37.20, lon: 15.17, name: "Sonatrach Augusta"}, // Rimosso permanentemente
+        {lat: 40.59, lon: 18.03, name: "Enipower Brindisi"}, // Rimosso
+        {lat: 37.20, lon: 15.17, name: "Sonatrach Augusta"}, // Rimosso
         {lat: 37.13, lon: 15.18, name: "Priolo"},
         {lat: 37.75, lon: 14.99, name: "Etna"},
         {lat: 38.79, lon: 15.21, name: "Stromboli"},
@@ -91,7 +92,7 @@
                 const lon = parseFloat(c[1]);
                 const temp = (parseFloat(c[2]) - 273.15).toFixed(0);
 
-                // FILTRO GEOGRAFICO (No Africa, No Svizzera, No Corsica, No Balcani)
+                // FILTRO GEOGRAFICO (Muro Sud 37.0 per tagliare Africa)
                 let inArea = (lat > 37.0 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
                 if (lat > 46.55) inArea = false;
                 if (lon < 9.7 && lat > 41.3 && lat < 43.1) inArea = false;
@@ -101,12 +102,11 @@
                     let shouldSkip = false;
                     blacklist.forEach(site => {
                         const d = Math.sqrt(Math.pow(lat - site.lat, 2) + Math.pow(lon - site.lon, 2));
-                        if (d < 0.08) shouldSkip = true; // Se è vicino a una raffineria, lo ignora
+                        if (d < 0.08) shouldSkip = true; // Salta falsi positivi industriali
                     });
 
-                    if (shouldSkip) continue; // Salta il punto e non disegnare nulla
+                    if (shouldSkip) continue;
 
-                    // Se arriva qui, è un incendio boschivo reale
                     nReal++;
                     let iconHtml = `<i class="fas fa-fire" style="color:${temp > 60 ? '#d73027' : '#fdae61'}; font-size:16px;"></i>`;
                     let popupContent = `<b>🔥 INCENDIO BOSCHIVO</b><br>Temperatura rilevata: ${temp}°C`;
@@ -142,6 +142,13 @@
         };
         legend.addTo(map);
     }
+
+    map.on('click', async (e) => {
+        if (document.getElementById('login-section').innerHTML.includes("OPERATIVO")) {
+            const desc = prompt("Descrizione evento:");
+            if (desc) await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() });
+        }
+    });
 </script>
 </body>
 </html>
