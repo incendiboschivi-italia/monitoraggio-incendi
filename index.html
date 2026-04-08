@@ -24,7 +24,6 @@
             width: 40px; height: 40px; border-radius: 50%;
             position: absolute; margin-left: -10px; margin-top: -10px;
             animation: pulse 1.5s infinite; pointer-events: none;
-            /* Colore di default grigio (in analisi) */
             background: rgba(150, 150, 150, 0.4); border: 2px solid #999;
         }
 
@@ -38,7 +37,7 @@
         .legend-section { margin-bottom: 10px; }
         .legend i { width: 16px; height: 16px; float: left; margin-right: 8px; border-radius: 3px; opacity: 0.9; }
 
-        .weather-widget { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 8px; }
+        .weather-widget { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 8px; min-height: 40px; }
         .risk-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; color: white; font-weight: bold; margin-top: 5px; font-size: 10px; }
         
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 10px; }
@@ -66,18 +65,17 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-    // Configurazione Mappe
+    // 1. CONFIGURAZIONE MAPPE E LAYER
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
     const topografica = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 });
 
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
     const nasaLayer = L.layerGroup().addTo(map);
 
-    // Selettore Layer
     const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
     L.control.layers(baseMaps, { "🔥 Incendi NASA": nasaLayer }, { collapsed: false }).addTo(map);
 
-    // Legenda Unificata a Destra (Spostata da bottomleft a bottomright)
+    // 2. LEGENDA A DESTRA
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'info legend');
@@ -87,9 +85,8 @@
                 <div><i class="fas fa-fire" style="color:#ff4500; font-size:12px; background:none;"></i> Incendio Attivo</div>
                 <div><i class="fas fa-camera" style="color:purple; font-size:12px; background:none;"></i> Alert Operativo</div>
             </div>
-            
             <div class="legend-section">
-                <b>INTENSITÀ RISCHIO (Colori Fiamma)</b>
+                <b>INTENSITÀ RISCHIO (FWI)</b>
                 <div><i style="background:#c0392b"></i> Molto Alto</div>
                 <div><i style="background:#e67e22"></i> Alto</div>
                 <div><i style="background:#f1c40f"></i> Medio</div>
@@ -101,14 +98,13 @@
     };
     legend.addTo(map);
 
-    // Funzione Coordinate in DMS
+    // 3. FUNZIONI UTILITY (DMS, RISCHIO, FILTRI)
     function toDMS(deg, pos, neg) {
         const abs = Math.abs(deg);
         const d = Math.floor(abs), m = Math.floor((abs-d)*60), s = ((abs-d-m/60)*3600).toFixed(1);
         return `${d}°${m}'${s}"${deg >= 0 ? pos : neg}`;
     }
 
-    // Indice di Rischio (FWI)
     function getRiskLevel(temp, hum) {
         let risk = (temp * 0.5) - (hum * 0.2);
         if (risk > 15) return { txt: "MOLTO ALTO", col: "#c0392b" };
@@ -117,7 +113,6 @@
         return { txt: "BASSO", col: "#27ae60" };
     }
 
-    // Blacklist e Filtro Italia
     const blacklist = [{lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, {lat:37.20, lon:15.17}, {lat:40.48, lon:17.22}];
     function isOutsideItaly(lat, lon) {
         if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.6) return true;
@@ -130,6 +125,19 @@
     }
 
     const weatherKey = "b1b15e88fa7972254124651173e936f6";
+
+    // 4. SISTEMA DI CARICAMENTO ANTI-BLOCCO (SOLUZIONE ICONE GRIGIE)
+    async function fetchWeatherData(lat, lon) {
+        const proxies = [`https://api.allorigins.win/raw?url=`, `https://corsproxy.io/?` ];
+        for (let proxy of proxies) {
+            try {
+                const url = `${proxy}${encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric&lang=it`)}`;
+                const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                if (r.ok) return await r.json();
+            } catch (e) { continue; }
+        }
+        return null;
+    }
 
     async function loadNasaData() {
         try {
@@ -149,96 +157,67 @@
                 if (blacklist.some(s => Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08)) continue;
 
                 nReal++;
-                const pId = `p-${i}`;
-                const tId = `type-${i}`;
-                const mId = `marker-${i}`;
+                const pId = `p-${i}`, tId = `type-${i}`;
                 
-                // Icona Fuoco Iniziale (Grigia - In Analisi)
-                const markerIcon = L.divIcon({
-                    html: `<div id="pulse-${i}" class="fire-pulse"></div><i id="fire-${i}" class="fas fa-fire" style="color:#999; font-size:20px; position:relative; z-index:10; text-shadow: 0 0 3px #000;"></i>`,
-                    className: 'fire-marker', iconSize:[20,20], iconAnchor:[10,10]
-                });
+                // Icona Grigia iniziale (In Analisi)
+                const marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: `<div id="pulse-${i}" class="fire-pulse"></div><i id="fire-${i}" class="fas fa-fire" style="color:#999; font-size:20px; position:relative; z-index:10;"></i>`,
+                        className: 'fire-marker', iconSize:[20,20], iconAnchor:[10,10]
+                    })
+                }).addTo(nasaLayer);
 
-                const marker = L.marker([lat, lon], { icon: markerIcon }).addTo(nasaLayer);
-
-                // Popup con segnaposto per Tipo e Meteo
                 marker.bindPopup(`
-                    <div style="font-size:11px; width:195px; color:#333;">
-                        <b>SITO:</b> <span id="${tId}" style="font-weight:bold; color:#000;">In analisi...</span><br>
+                    <div style="font-size:11px; width:195px;">
+                        <b>SITO:</b> <span id="${tId}">In analisi...</span><br>
                         <b>AREA:</b> ~14 ha<br>
                         <b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
-                        <div id="${pId}" class="weather-widget">
-                            <i class="fas fa-sync fa-spin"></i> Analisi parametri reali...
-                        </div>
+                        <div id="${pId}" class="weather-widget"><i class="fas fa-sync fa-spin"></i> Recupero parametri...</div>
                     </div>`);
 
-                // Logica Dinamica: Recupera meteo, calcola rischio e COLORA la fiamma
-                fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric&lang=it`))
-                .then(r => r.json())
-                .then(w => {
-                    if(w.main) {
+                // Caricamento Meteo con ritardo incrementale (evita blocchi proxy)
+                setTimeout(async () => {
+                    const w = await fetchWeatherData(lat, lon);
+                    const fireIcon = document.getElementById(`fire-${i}`);
+                    const pulse = document.getElementById(`pulse-${i}`);
+                    const typeEl = document.getElementById(tId);
+
+                    if (w && w.main) {
                         const risk = getRiskLevel(w.main.temp, w.main.humidity);
+                        if(fireIcon) fireIcon.style.color = risk.col;
+                        if(pulse) { pulse.style.background = risk.col + "66"; pulse.style.borderColor = risk.col; }
+                        if(typeEl) typeEl.innerText = (risk.txt === "MOLTO ALTO") ? "Bosco / Forestale" : "Vegetazione / Bosco";
                         
-                        // 1. Aggiorna Colore Fiamma sulla mappa (Dati Reali)
-                        const fireIconEl = document.getElementById(`fire-${i}`);
-                        const pulseEl = document.getElementById(`pulse-${i}`);
-                        if(fireIconEl && pulseEl) {
-                            fireIconEl.style.color = risk.col; // Colore icona fiammella
-                            pulseEl.style.background = `${risk.col}66`; // Colore radar semitrasparente (aggiungo '66' per opacità)
-                            pulseEl.style.borderColor = risk.col; // Colore bordo radar
-                        }
-
-                        // 2. Aggiorna Tipo (Bosco o Sterpaglie) basato sul rischio
-                        const typeEl = document.getElementById(tId);
-                        if (typeEl) {
-                            if (risk.txt === "MOLTO ALTO" || risk.txt === "ALTO") {
-                                typeEl.innerText = "Bosco / Forestale (Rischio Elevato)";
-                            } else {
-                                typeEl.innerText = "Vegetazione / Sterpaglie";
-                            }
-                        }
-
-                        // 3. Aggiorna Parametri Meteo e Badge nel popup
                         marker.on('popupopen', () => {
-                            const widgetEl = document.getElementById(pId);
-                            if(widgetEl) {
-                                widgetEl.innerHTML = `
-                                    <div style="margin-bottom:4px; font-weight:bold;"><i class="fas fa-thermometer-half" style="color:#e74c3c;"></i> ${w.main.temp.toFixed(1)}°C | <i class="fas fa-tint" style="color:#3498db;"></i> ${w.main.humidity}% UR</div>
-                                    <div style="font-size:10px; color:#666; font-weight:bold;">RISCHIO INCENDIO (FWI) REALE:</div>
-                                    <div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>`;
-                            }
+                            const widget = document.getElementById(pId);
+                            if(widget) widget.innerHTML = `<div style="margin-top:5px;"><b>${w.main.temp.toFixed(1)}°C</b> | <b>${w.main.humidity}% UR</b></div><div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>`;
                         });
+                    } else {
+                        // Fallback se il proxy fallisce ancora
+                        if(fireIcon) fireIcon.style.color = "#ff4500";
+                        if(typeEl) typeEl.innerText = "Vegetazione / Bosco";
                     }
-                }).catch(e => {
-                    if(document.getElementById(pId)) document.getElementById(pId).innerHTML = "Dati meteo non disponibili";
-                    if(document.getElementById(tId)) document.getElementById(tId).innerText = "Vegetazione";
-                });
+                }, i * 200); 
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
             document.getElementById('area-est').innerText = `Superficie stimata in Italia: ${(nReal * 14.06).toFixed(2)} ha`;
-        } catch (e) { console.log("Errore aggiornamento dati NASA"); }
+        } catch (e) { console.error("Errore Caricamento NASA"); }
     }
 
-    // Menu Notizie Rapide
+    // 5. LOGIN E NOTIZIE
     window.openNewsMenu = () => {
         const s = prompt("1-Vigilfuoco | 2-Prot. Civile | 3-AIB | 4-Meteo Aeronautica", "1");
-        const urls = {
-            "1":"https://www.vigilfuoco.it/media/notizie/dal-territorio", 
-            "2":"https://www.iononrischio.gov.it", 
-            "3":"http://www.pcn.minambiente.it",
-            "4":"http://www.meteoam.it"
-        };
+        const urls = { "1":"https://www.vigilfuoco.it/media/notizie/dal-territorio", "2":"https://www.iononrischio.gov.it", "3":"http://www.pcn.minambiente.it", "4":"http://www.meteoam.it" };
         if(urls[s]) window.open(urls[s], '_blank');
     };
 
-    // Login Operatore
     window.checkAuth = () => {
         if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
             document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71; margin-left:10px;'>⭐ OPERATIVO</b>";
         } else alert("Accesso Negato");
     };
 
-    // Esecuzione Iniziale e Auto-Refresh (10 minuti)
+    // AVVIO E AUTO-REFRESH
     loadNasaData();
     setInterval(loadNasaData, 600000); 
 </script>
