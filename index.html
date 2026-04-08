@@ -10,24 +10,41 @@
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 1000; border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
+        .login-box { display: flex; align-items: center; }
         .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; margin-right: 5px; width: 150px; }
-        .login-box button { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 15px; transition: 0.3s; }
+        .btn-news:hover { background: #2980b9; }
+        .btn-login { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .legend { background: rgba(255, 255, 255, 0.95); padding: 12px; border-radius: 10px; color: black; font-size: 13px; box-shadow: 0 0 15px rgba(0,0,0,0.6); }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 10px; text-align: center; }
         #stat { font-weight: bold; font-size: 1.1em; color: #fff; display: flex; align-items: center; }
         #stat span.flag { margin-right: 10px; font-size: 1.3em; } 
-        .f-icon { display: flex; align-items: center; justify-content: center; }
+        /* Modal Notizie */
+        #news-modal { display: none; position: fixed; z-index: 2000; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #2c3e50; color: white; padding: 20px; border-radius: 10px; border: 2px solid #3498db; width: 300px; text-align: center; }
+        #news-modal a { display: block; color: #3498db; text-decoration: none; margin: 10px 0; background: white; padding: 10px; border-radius: 5px; font-weight: bold; }
+        #news-modal button { background: #e74c3c; border: none; color: white; padding: 5px 10px; cursor: pointer; border-radius: 4px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <header>
     <div id="stat"><span class="flag">🇮🇹</span> MONITORAGGIO INCENDI ITALIA: <span id="count">Caricamento...</span></div>
-    <div id="login-section" class="login-box">
-        <input type="password" id="operator-code" placeholder="Codice Operatore">
-        <button onclick="checkAuth()">ENTRA</button>
+    <div class="login-box">
+        <button class="btn-news" onclick="toggleNews()"><i class="fas fa-search"></i> NOTIZIE RAPIDE</button>
+        <div id="login-section">
+            <input type="password" id="operator-code" placeholder="Codice Operatore">
+            <button class="btn-login" onclick="checkAuth()">ENTRA</button>
+        </div>
     </div>
 </header>
+
+<div id="news-modal">
+    <h3>🔍 CERCA EMERGENZE</h3>
+    <p>Usa questi link per trovare incendi non ancora rilevati dal satellite:</p>
+    <a href="https://www.vigilfuoco.tv/notizie" target="_blank">VIGILI DEL FUOCO (TV)</a>
+    <a href="https://twitter.com/search?q=incendio%20italia&src=typed_query&f=live" target="_blank">TWITTER (Real-time)</a>
+    <a href="https://www.ansa.it/sito/notizie/cronaca/cronaca.shtml" target="_blank">ANSA CRONACA</a>
+    <button onclick="toggleNews()">Chiudi</button>
+</div>
 
 <div id="map"></div>
 
@@ -54,39 +71,18 @@
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    const blacklist = [
-        {lat: 45.10, lon: 7.51,  name: "Ferriere Nord Rivoli"},
-        {lat: 45.45, lon: 10.49, name: "Feralpi Siderurgica Lonato"},
-        {lat: 45.47, lon: 10.22, name: "Duferco San Zeno/Colombo"},
-        {lat: 45.15, lon: 9.97,  name: "Oleificio Zucchi Cavatigozzi"},
-        {lat: 45.64, lon: 9.61,  name: "Tenaris-Dalmine"},
-        {lat: 45.72, lon: 9.47,  name: "Italcementi Calusco d'Adda"},
-        {lat: 45.79, lon: 8.70,  name: "Holcim Italia Ternate"},
-        {lat: 45.38, lon: 11.92, name: "Acciaierie Venete"},
-        {lat: 40.58, lon: 9.71,  name: "Zona Industriale Siniscola"},
-        {lat: 39.20, lon: 8.39,  name: "Portovesme"}, 
-        {lat: 40.59, lon: 18.03, name: "Enipower Brindisi"}, 
-        {lat: 37.20, lon: 15.17, name: "Sonatrach Augusta"}, 
-        {lat: 37.13, lon: 15.18, name: "Priolo"},
-        {lat: 37.75, lon: 14.99, name: "Etna"},
-        {lat: 38.79, lon: 15.21, name: "Stromboli"},
-        {lat: 38.20, lon: 15.24, name: "Milazzo"},
-        {lat: 39.09, lon: 9.01,  name: "Sarroch"},
-        {lat: 40.48, lon: 17.22, name: "Taranto"},
-        {lat: 45.45, lon: 12.23, name: "Marghera"},
-        {lat: 44.91, lon: 8.82,  name: "Sannazzaro"},
-        {lat: 43.58, lon: 10.33, name: "Livorno"}
-    ];
+    const blacklist = [{lat:45.1,lon:7.51},{lat:45.45,lon:10.49},{lat:45.47,lon:10.22},{lat:45.15,lon:9.97},{lat:45.64,lon:9.61},{lat:45.72,lon:9.47},{lat:45.79,lon:8.7},{lat:45.38,lon:11.92},{lat:40.58,lon:9.71},{lat:39.2,lon:8.39},{lat:40.59,lon:18.03},{lat:37.2,lon:15.17},{lat:37.13,lon:15.18},{lat:37.75,lon:14.99},{lat:38.79,lon:15.21},{lat:38.2,lon:15.24},{lat:39.09,lon:9.01},{lat:40.48,lon:17.22},{lat:45.45,lon:12.23},{lat:44.91,lon:8.82},{lat:43.58,lon:10.33}];
 
-    // CARICAMENTO AUTOMATICO E REFRESH OGNI 10 MINUTI
+    window.toggleNews = () => {
+        const modal = document.getElementById('news-modal');
+        modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+    };
+
     window.onload = () => {
-        loadNasaData(); // Subito
+        loadNasaData();
         loadCloudData();
         addLegend();
-        
-        setInterval(() => {
-            loadNasaData();
-        }, 600000); // Ogni 10 min
+        setInterval(loadNasaData, 600000);
     };
 
     window.checkAuth = function() {
@@ -102,36 +98,20 @@
             const lines = csv.split('\n');
             let nReal = 0;
             nasaLayer.clearLayers();
-
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
                 if (c.length < 3) continue;
-                const lat = parseFloat(c[0]);
-                const lon = parseFloat(c[1]);
-                const temp = (parseFloat(c[2]) - 273.15).toFixed(0);
-
-                let inArea = (lat > 37.0 && lat < 47.1) && (lon > 6.6 && lon < 18.5);
-                if (lat > 46.55) inArea = false;
-                if (lon < 9.7 && lat > 41.3 && lat < 43.1) inArea = false;
-                if (lon > 13.6 && lat > 42.0) inArea = false;
-
-                if (inArea) {
-                    let shouldSkip = false;
-                    blacklist.forEach(site => {
-                        const d = Math.sqrt(Math.pow(lat - site.lat, 2) + Math.pow(lon - site.lon, 2));
-                        if (d < 0.08) shouldSkip = true; 
-                    });
-
-                    if (shouldSkip) continue;
-
+                const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
+                if ((lat > 37.0 && lat < 47.1) && (lon > 6.6 && lon < 18.5)) {
+                    let skip = false;
+                    blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08) skip=true; });
+                    if(skip) continue;
                     nReal++;
-                    let iconHtml = `<i class="fas fa-fire" style="color:${temp > 60 ? '#d73027' : '#fdae61'}; font-size:16px;"></i>`;
-                    L.marker([lat, lon], { icon: L.divIcon({ html: iconHtml, className: 'f-icon' }) })
-                     .addTo(nasaLayer).bindPopup(`<b>🔥 INCENDIO BOSCHIVO</b><br>Temperatura: ${temp}°C`);
+                    L.marker([lat, lon], { icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:#d73027; font-size:16px;"></i>`, className: 'f-icon' }) }).addTo(nasaLayer);
                 }
             }
-            document.getElementById('count').innerText = `${nReal} Incendi in Italia`;
-        } catch (e) { console.error("Errore NASA"); }
+            document.getElementById('count').innerText = `${nReal} Incendi (Satellite)`;
+        } catch (e) {}
     }
 
     function loadCloudData() {
@@ -146,13 +126,10 @@
     }
 
     function addLegend() {
-        if (document.querySelector('.legend')) return;
         const legend = L.control({position: 'bottomright'});
-        legend.onAdd = function() {
+        legend.onAdd = () => {
             const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<b>LEGENDA</b><br>' +
-                            '<i class="fas fa-fire" style="color:#d73027"></i> Incendio Boschivo<br>' +
-                            '<i class="fas fa-camera" style="color:purple"></i> Segnalazione Staff';
+            div.innerHTML = '<b>LEGENDA</b><br><i class="fas fa-fire" style="color:#d73027"></i> Satellite NASA<br><i class="fas fa-camera" style="color:purple"></i> Segnalazione Staff';
             return div;
         };
         legend.addTo(map);
@@ -160,7 +137,7 @@
 
     map.on('click', async (e) => {
         if (document.getElementById('login-section').innerHTML.includes("OPERATIVO")) {
-            const desc = prompt("Descrizione evento:");
+            const desc = prompt("Cosa sta succedendo qui?");
             if (desc) await addDoc(collection(db, "segnalazioni"), { lat: e.latlng.lat, lon: e.latlng.lng, desc: desc, timestamp: new Date() });
         }
     });
