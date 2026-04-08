@@ -39,6 +39,10 @@
             flex-direction: column;
             align-items: center;
         }
+
+        /* Widget Meteo Popup */
+        .weather-widget { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 8px; }
+        .weather-item { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
     </style>
 </head>
 <body>
@@ -173,17 +177,47 @@
                 nReal++;
                 totalHa += 14.06;
                 
-                // Icona Fuoco
-                const popup = `<div style="font-size:11px;"><b>SITO:</b> Incendio Attivo<br><b>AREA:</b> ~14 ha<br><b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}</div>`;
+                // --- LOGICA POPUP CON METEO LOCALE ---
+                const popupId = `popup-${i}`;
+                const popupContent = L.DomUtil.create('div', '');
+                popupContent.innerHTML = `
+                    <div style="font-size:11px;">
+                        <b>SITO:</b> Incendio Attivo<br>
+                        <b>AREA:</b> ~14 ha<br>
+                        <b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
+                        <div id="${popupId}" class="weather-widget">
+                            <i class="fas fa-spinner fa-spin"></i> Caricamento meteo...
+                        </div>
+                    </div>`;
+
                 L.circle([lat, lon], { color: 'red', weight: 1, fillColor: '#f03', fillOpacity: 0.3, radius: 375 }).addTo(nasaLayer);
-                L.marker([lat, lon], { 
+                
+                const marker = L.marker([lat, lon], { 
                     icon: L.divIcon({ 
                         html: `<i class="fas fa-fire" style="color:#ff4500; font-size:20px; text-shadow: 0 0 5px #000;"></i>`, 
                         className: 'fire-icon', iconSize: [20, 20], iconAnchor: [10, 10]
                     }) 
-                }).addTo(nasaLayer).bindPopup(popup);
+                }).addTo(nasaLayer).bindPopup(popupContent);
 
-                // Recupero Vento
+                // Carica meteo solo all'apertura del popup per risparmiare risorse
+                marker.on('popupopen', () => {
+                    fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=b1b15e88fa7972254124651173e936f6&units=metric&lang=it`)
+                    .then(r => r.json())
+                    .then(w => {
+                        const widget = document.getElementById(popupId);
+                        if(widget && w.main) {
+                            widget.innerHTML = `
+                                <div class="weather-item"><i class="fas fa-thermometer-half" style="color:#e74c3c"></i> <b>Temp:</b> ${w.main.temp.toFixed(1)}°C</div>
+                                <div class="weather-item"><i class="fas fa-tint" style="color:#3498db"></i> <b>Umidità:</b> ${w.main.humidity}%</div>
+                                <div class="weather-item"><i class="fas fa-cloud" style="color:#95a5a6"></i> <b>Stato:</b> ${w.weather[0].description}</div>
+                            `;
+                        }
+                    }).catch(() => {
+                        document.getElementById(popupId).innerHTML = "Meteo non disponibile";
+                    });
+                });
+
+                // Recupero Vento per Layer separato
                 fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=b1b15e88fa7972254124651173e936f6&units=metric`)
                 .then(r => r.json())
                 .then(w => {
