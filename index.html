@@ -62,33 +62,47 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    // --- DEFINIZIONE LAYER BASE ---
+    // --- LAYER BASE ---
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri World Imagery',
-        maxZoom: 19
+        attribution: 'Esri World Imagery', maxZoom: 19
     });
 
     const topografica = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 17,
-        attribution: 'OpenTopoMap'
+        maxZoom: 17, attribution: 'OpenTopoMap'
     });
 
-    // Inizializzazione mappa con il satellite come default
-    const map = L.map('map', {
-        center: [42.0, 12.5],
-        zoom: 6,
-        layers: [satellite] 
-    });
+    const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
 
-    // Controllo per cambiare mappa
-    const baseMaps = {
-        "🛰️ Vista Satellitare": satellite,
-        "⛰️ Mappa Topografica": topografica
-    };
-    L.control.layers(baseMaps, null, { collapsed: false, position: 'topright' }).addTo(map);
+    // --- NUOVO: INDICE DI RISCHIO STORICO (Heatmap manuale) ---
+    const riskLayer = L.layerGroup();
+    const riskZones = [
+        {lat: 40.1, lon: 9.1, r: 80000},  // Sardegna Centrale
+        {lat: 37.5, lon: 14.2, r: 90000}, // Sicilia Interna
+        {lat: 39.0, lon: 16.5, r: 60000}, // Calabria (Sila/Aspromonte)
+        {lat: 41.2, lon: 15.5, r: 50000}, // Puglia (Foggia/Gargano)
+        {lat: 42.3, lon: 13.5, r: 40000}, // Abruzzo (Appennino)
+        {lat: 43.5, lon: 11.0, r: 35000}, // Toscana (Zone secche)
+        {lat: 40.5, lon: 17.5, r: 45000}  // Salento
+    ];
+
+    riskZones.forEach(zone => {
+        L.circle([zone.lat, zone.lon], {
+            radius: zone.r,
+            color: 'orange',
+            fillColor: '#f03',
+            fillOpacity: 0.2,
+            weight: 1,
+            interactive: false
+        }).addTo(riskLayer);
+    });
 
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
+
+    // --- CONTROLLO LIVELLI ---
+    const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
+    const overlayMaps = { "⚠️ Indice Rischio Storico": riskLayer, "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer };
+    L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
     
     const blacklist = [
         {lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, 
@@ -110,56 +124,37 @@
         const d = Math.floor(absolute);
         const m = Math.floor((absolute - d) * 60);
         const s = ((absolute - d - m / 60) * 3600).toFixed(1);
-        const direction = deg >= 0 ? pos : neg;
-        return `${d}° ${m}' ${s}" ${direction}`;
+        return `${d}° ${m}' ${s}" ${deg >= 0 ? pos : neg}`;
     }
 
     function getVegetationType(lat, lon) {
         if (lat > 44.0 || (lat < 42.5 && lat > 41.5)) return "🌲 BOSCO / FORESTA";
-        if (lat < 39.0) return "🌱 MACCHIA MEDITERRANEA / ARBUSTI";
-        return "🌾 AREA AGRICOLA / VEGETAZIONE MISTA";
+        if (lat < 39.0) return "🌱 MACCHIA MEDITERRANEA";
+        return "🌾 AREA AGRICOLA / MIX";
     }
 
     window.openNewsMenu = () => {
-        const scelta = prompt("Scegli la fonte notizie:\n1 - Vigili del Fuoco\n2 - Protezione Civile\n3 - Geoportale AIB", "1");
+        const scelta = prompt("Scegli fonte:\n1-VVF\n2-Prot. Civile\n3-Geoportale AIB", "1");
         if (scelta === "1") window.open('https://www.vigilfuoco.it/media/notizie/dal-territorio', '_blank');
         else if (scelta === "2") window.open('https://www.iononrischio.gov.it/it/preparati/incendi-boschivi/', '_blank');
         else if (scelta === "3") window.open('http://www.pcn.minambiente.it/viewer/index.php?services=AIB_Incendi_PNZ', '_blank');
     };
 
     window.checkAuth = () => {
-        const code = document.getElementById('operator-code').value;
-        if (code === "GABRIELE_STAFF") {
+        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
             document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
-        } else {
-            alert("Codice errato");
-        }
+        } else { alert("Codice errato"); }
     };
 
     const legend = L.control({position: 'bottomleft'});
     legend.onAdd = function () {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `<div><i class="fas fa-fire" style="color:#d73027"></i> Incendio Satellite</div>
+        div.innerHTML = `<div><i class="fas fa-fire" style="color:#d73027"></i> Incendio</div>
                          <div><i class="fas fa-camera" style="color:purple"></i> Alert Operativo</div>
-                         <div style="border-top: 1px solid #ccc; margin-top: 5px; font-weight: normal; font-size: 11px;">Multimappa Attiva</div>`;
+                         <div style="color:orange"><i class="fas fa-circle" style="color:rgba(255,0,0,0.3)"></i> Rischio Storico Secchezza</div>`;
         return div;
     };
     legend.addTo(map);
-
-    const intensityLegend = L.control({position: 'bottomright'});
-    intensityLegend.onAdd = function () {
-        const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `<div style="text-align:center; border-bottom:1px solid #ccc; margin-bottom:5px;">INTENSITÀ</div><div><i class="fas fa-fire" style="color:#ffff00"></i> Moderato</div><div><i class="fas fa-fire" style="color:#ffcc00"></i> Medio</div><div><i class="fas fa-fire" style="color:#ff6666"></i> Elevato</div><div><i class="fas fa-fire" style="color:#800000"></i> Critico</div>`;
-        return div;
-    };
-    intensityLegend.addTo(map);
-
-    function getIntensityColor(temp) {
-        if (temp > 350) return '#800000'; 
-        if (temp > 330) return '#ff6666'; 
-        if (temp > 310) return '#ffcc00'; 
-        return '#ffff00'; 
-    }
 
     async function loadNasaData() {
         try {
@@ -168,36 +163,21 @@
             const lines = csv.split('\n');
             let nReal = 0;
             nasaLayer.clearLayers();
-
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
                 if (c.length < 3) continue;
-                const lat = parseFloat(c[0]);
-                const lon = parseFloat(c[1]);
-                const temp = parseFloat(c[2]);
-
-                let inArea = false;
-                if (lat > 44.2 && lat < 47.1 && lon > 6.6 && lon < 13.5) inArea = true; 
-                else if (lat > 37.5 && lat <= 44.2 && lon > 8.0 && lon < 17.5) inArea = true; 
-                else if (lat > 36.5 && lat <= 37.5 && lon > 12.1 && lon < 15.6) inArea = true; 
-                else if (lat > 38.8 && lat < 41.5 && lon > 8.0 && lon < 10.0) inArea = true;
-
-                if (inArea) {
+                const lat = parseFloat(c[0]), lon = parseFloat(c[1]), temp = parseFloat(c[2]);
+                if ((lat > 35 && lat < 48) && (lon > 6 && lon < 19)) {
                     let skip = false;
                     blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.06) skip=true; });
                     if(skip) continue;
-
                     nReal++;
-                    const color = getIntensityColor(temp);
-                    const veg = getVegetationType(lat, lon);
-                    const info = `<div style="font-size:12px;"><b>ANALISI AMBIENTALE:</b><br>${veg}<br><br><b>COORD DMS:</b><br>${toDMS(lat, 'N', 'S')}<br>${toDMS(lon, 'E', 'W')}</div>`;
-
-                    L.circle([lat, lon], { color: color, fillColor: color, fillOpacity: 0.4, radius: 700 }).addTo(nasaLayer).bindPopup(info);
-                    L.marker([lat, lon], { icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:${color}; font-size:16px; text-shadow: 0 0 3px #000;"></i>`, className: 'f-icon' }) }).addTo(nasaLayer).bindPopup(info);
+                    const info = `<div style="font-size:11px;"><b>SITO:</b> ${getVegetationType(lat,lon)}<br><b>DMS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}</div>`;
+                    L.circle([lat, lon], { color: 'red', radius: 800 }).addTo(nasaLayer).bindPopup(info);
                 }
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
-        } catch (e) { console.error("Errore NASA"); }
+        } catch (e) { console.error("NASA data error"); }
     }
 
     window.onload = () => {
@@ -206,8 +186,7 @@
             cloudLayer.clearLayers();
             snap.forEach(doc => {
                 const d = doc.data();
-                const dmsSegnalazione = `<b>COORD SEGNALAZIONE:</b><br>${toDMS(d.lat, 'N', 'S')}<br>${toDMS(d.lon, 'E', 'W')}`;
-                L.marker([d.lat, d.lon], { icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' }) }).addTo(cloudLayer).bindPopup(dmsSegnalazione);
+                L.marker([d.lat, d.lon], { icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>`, className: 'c-icon' }) }).addTo(cloudLayer);
             });
         });
         setInterval(loadNasaData, 600000); 
