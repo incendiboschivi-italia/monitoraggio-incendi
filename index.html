@@ -55,6 +55,7 @@
 
     // BLACKLIST RIMOZIONE TOTALE (Nessuna icona, nessun conteggio)
     const blacklist = [
+        {lat: 39.20, lon: 8.39,  name: "Portovesme"}, // Rimosso permanentemente
         {lat: 40.59, lon: 18.03, name: "Enipower Brindisi"}, // Rimosso
         {lat: 37.20, lon: 15.17, name: "Sonatrach Augusta"}, // Rimosso
         {lat: 37.13, lon: 15.18, name: "Priolo"},
@@ -102,7 +103,7 @@
                     let shouldSkip = false;
                     blacklist.forEach(site => {
                         const d = Math.sqrt(Math.pow(lat - site.lat, 2) + Math.pow(lon - site.lon, 2));
-                        if (d < 0.08) shouldSkip = true; // Salta falsi positivi industriali
+                        if (d < 0.08) shouldSkip = true; // Salta falsi positivi
                     });
 
                     if (shouldSkip) continue;
