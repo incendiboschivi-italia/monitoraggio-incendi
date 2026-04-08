@@ -148,9 +148,12 @@
                     icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:#ff4500; font-size:20px; text-shadow: 0 0 5px #000;"></i>`, className: 'fire-icon', iconSize:[20,20], iconAnchor:[10,10]}) 
                 }).addTo(nasaLayer);
 
+                // RIPRISTINATO: Tipo SITO: Vegetazione/Bosco
                 marker.bindPopup(`
                     <div style="font-size:11px;">
-                        <b>SITO:</b> Incendio Attivo<br><b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
+                        <b>SITO:</b> Vegetazione/Bosco<br>
+                        <b>AREA:</b> ~14 ha<br>
+                        <b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
                         <div id="${pId}" class="weather-widget"><i class="fas fa-sync fa-spin"></i> Caricamento meteo...</div>
                     </div>`);
 
@@ -168,7 +171,6 @@
                     } catch (err) { document.getElementById(pId).innerHTML = "Meteo non disponibile"; }
                 });
 
-                // Caricamento layer vento silente
                 fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric`))
                 .then(r => r.json()).then(w => {
                     if(w.wind) {
