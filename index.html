@@ -27,6 +27,29 @@
             font-weight: bold;
         }
         .legend i { width: 18px; text-align: center; margin-right: 8px; }
+
+        /* Stili per il Righello */
+        .ruler-btn {
+            background: white;
+            width: 34px;
+            height: 34px;
+            line-height: 34px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            border-radius: 4px;
+            color: #333;
+            font-size: 16px;
+        }
+        .ruler-btn.active { background: #e74c3c; color: white; }
+        .distance-label {
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -73,33 +96,82 @@
 
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
 
-    // --- NUOVO: INDICE DI RISCHIO STORICO (Heatmap manuale) ---
+    // --- RIGHELLO (RULER) PLUGIN ---
+    let rulerActive = false;
+    let rulerPoints = [];
+    let rulerLayers = L.layerGroup().addTo(map);
+
+    const RulerControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function() {
+            const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            const button = L.DomUtil.create('a', 'ruler-btn', container);
+            button.innerHTML = '<i class="fas fa-ruler-combined"></i>';
+            button.title = "Misura distanza";
+
+            L.DomEvent.on(button, 'click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                rulerActive = !rulerActive;
+                if (rulerActive) {
+                    button.classList.add('active');
+                    map.getContainer().style.cursor = 'crosshair';
+                } else {
+                    button.classList.remove('active');
+                    map.getContainer().style.cursor = '';
+                    resetRuler();
+                }
+            });
+            return container;
+        }
+    });
+    map.addControl(new RulerControl());
+
+    function resetRuler() {
+        rulerPoints = [];
+        rulerLayers.clearLayers();
+    }
+
+    map.on('click', (e) => {
+        if (!rulerActive) return;
+
+        rulerPoints.push(e.latlng);
+        L.circleMarker(e.latlng, { radius: 5, color: '#e74c3c' }).addTo(rulerLayers);
+
+        if (rulerPoints.length === 2) {
+            const dist = map.distance(rulerPoints[0], rulerPoints[1]);
+            const label = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
+            
+            L.polyline(rulerPoints, { color: '#e74c3c', weight: 3, dashArray: '5, 10' }).addTo(rulerLayers);
+            L.marker(e.latlng, {
+                icon: L.divIcon({
+                    className: 'distance-label',
+                    html: label,
+                    iconAnchor: [-10, 20]
+                })
+            }).addTo(rulerLayers);
+            
+            rulerPoints = [e.latlng]; // Permette misurazioni continue o reset al prossimo click
+        }
+    });
+
+    // --- INDICE DI RISCHIO STORICO ---
     const riskLayer = L.layerGroup();
     const riskZones = [
-        {lat: 40.1, lon: 9.1, r: 80000},  // Sardegna Centrale
-        {lat: 37.5, lon: 14.2, r: 90000}, // Sicilia Interna
-        {lat: 39.0, lon: 16.5, r: 60000}, // Calabria (Sila/Aspromonte)
-        {lat: 41.2, lon: 15.5, r: 50000}, // Puglia (Foggia/Gargano)
-        {lat: 42.3, lon: 13.5, r: 40000}, // Abruzzo (Appennino)
-        {lat: 43.5, lon: 11.0, r: 35000}, // Toscana (Zone secche)
-        {lat: 40.5, lon: 17.5, r: 45000}  // Salento
+        {lat: 40.1, lon: 9.1, r: 80000},  {lat: 37.5, lon: 14.2, r: 90000},
+        {lat: 39.0, lon: 16.5, r: 60000}, {lat: 41.2, lon: 15.5, r: 50000},
+        {lat: 42.3, lon: 13.5, r: 40000}, {lat: 43.5, lon: 11.0, r: 35000},
+        {lat: 40.5, lon: 17.5, r: 45000}
     ];
 
     riskZones.forEach(zone => {
         L.circle([zone.lat, zone.lon], {
-            radius: zone.r,
-            color: 'orange',
-            fillColor: '#f03',
-            fillOpacity: 0.2,
-            weight: 1,
-            interactive: false
+            radius: zone.r, color: 'orange', fillColor: '#f03', fillOpacity: 0.2, weight: 1, interactive: false
         }).addTo(riskLayer);
     });
 
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
 
-    // --- CONTROLLO LIVELLI ---
     const baseMaps = { "🛰️ Vista Satellitare": satellite, "⛰️ Mappa Topografica": topografica };
     const overlayMaps = { "⚠️ Indice Rischio Storico": riskLayer, "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer };
     L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
@@ -166,7 +238,7 @@
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
                 if (c.length < 3) continue;
-                const lat = parseFloat(c[0]), lon = parseFloat(c[1]), temp = parseFloat(c[2]);
+                const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
                 if ((lat > 35 && lat < 48) && (lon > 6 && lon < 19)) {
                     let skip = false;
                     blacklist.forEach(s => { if(Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.06) skip=true; });
