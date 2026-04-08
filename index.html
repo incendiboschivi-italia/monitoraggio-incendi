@@ -6,18 +6,24 @@
     <title>MONITORAGGIO INCENDI ITALIA - PRO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    
     <style>
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 1000; border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
+        
+        /* Stile Barra di Ricerca stile Google Maps */
+        .leaflet-control-geocoder { border-radius: 8px !important; box-shadow: 0 2px 10px rgba(0,0,0,0.5) !important; border: none !important; width: 300px !important; }
+        .leaflet-control-geocoder-form input { padding: 10px !important; font-size: 14px !important; background: #fff !important; color: #000 !important; border-radius: 8px 0 0 8px !important; }
+        
         .login-box { display: flex; align-items: center; }
-        .login-box input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; margin-right: 5px; width: 150px; }
-        .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 15px; transition: 0.3s; }
-        .btn-news:hover { background: #2980b9; }
+        .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 15px; }
         .btn-login { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .legend { background: rgba(255, 255, 255, 0.95); padding: 12px; border-radius: 10px; color: black; font-size: 13px; box-shadow: 0 0 15px rgba(0,0,0,0.6); }
         #stat { font-weight: bold; font-size: 1.1em; color: #fff; display: flex; align-items: center; }
         #stat span.flag { margin-right: 10px; font-size: 1.3em; } 
+        
         /* Modal Notizie */
         #news-modal { display: none; position: fixed; z-index: 2000; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #2c3e50; color: white; padding: 20px; border-radius: 10px; border: 2px solid #3498db; width: 300px; text-align: center; }
         #news-modal a { display: block; color: #3498db; text-decoration: none; margin: 10px 0; background: white; padding: 10px; border-radius: 5px; font-weight: bold; }
@@ -31,7 +37,7 @@
     <div class="login-box">
         <button class="btn-news" onclick="toggleNews()"><i class="fas fa-search"></i> NOTIZIE RAPIDE</button>
         <div id="login-section">
-            <input type="password" id="operator-code" placeholder="Codice Operatore">
+            <input type="password" id="operator-code" placeholder="Codice Operatore" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; margin-right:5px;">
             <button class="btn-login" onclick="checkAuth()">ENTRA</button>
         </div>
     </div>
@@ -39,16 +45,15 @@
 
 <div id="news-modal">
     <h3>🔍 CERCA EMERGENZE</h3>
-    <p>Usa questi link per trovare incendi non ancora rilevati dal satellite:</p>
-    <a href="https://www.vigilfuoco.tv/notizie" target="_blank">VIGILI DEL FUOCO (TV)</a>
-    <a href="https://twitter.com/search?q=incendio%20italia&src=typed_query&f=live" target="_blank">TWITTER (Real-time)</a>
-    <a href="https://www.ansa.it/sito/notizie/cronaca/cronaca.shtml" target="_blank">ANSA CRONACA</a>
+    <a href="https://www.vigilfuoco.tv/notizie" target="_blank">VIGILI DEL FUOCO</a>
+    <a href="https://twitter.com/search?q=incendio%20italia&f=live" target="_blank">TWITTER LIVE</a>
     <button onclick="toggleNews()">Chiudi</button>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -68,9 +73,17 @@
     const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+    // RICERCA CON AUTOCOMPLETAMENTO (STILE GOOGLE MAPS)
+    const geocoder = L.Control.Geocoder.photon(); // Usa Photon per suggerimenti rapidi
+    L.Control.geocoder({
+        geocoder: geocoder,
+        defaultMarkGeocode: true,
+        placeholder: "Cerca come su Google Maps...",
+        errorMessage: "Località non trovata"
+    }).addTo(map);
+
     const nasaLayer = L.layerGroup().addTo(map);
     const cloudLayer = L.layerGroup().addTo(map);
-
     const blacklist = [{lat:45.1,lon:7.51},{lat:45.45,lon:10.49},{lat:45.47,lon:10.22},{lat:45.15,lon:9.97},{lat:45.64,lon:9.61},{lat:45.72,lon:9.47},{lat:45.79,lon:8.7},{lat:45.38,lon:11.92},{lat:40.58,lon:9.71},{lat:39.2,lon:8.39},{lat:40.59,lon:18.03},{lat:37.2,lon:15.17},{lat:37.13,lon:15.18},{lat:37.75,lon:14.99},{lat:38.79,lon:15.21},{lat:38.2,lon:15.24},{lat:39.09,lon:9.01},{lat:40.48,lon:17.22},{lat:45.45,lon:12.23},{lat:44.91,lon:8.82},{lat:43.58,lon:10.33}];
 
     window.toggleNews = () => {
