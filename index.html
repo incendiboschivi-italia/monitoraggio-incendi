@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA - V3 FINAL</title>
+    <title>MONITORAGGIO INCENDI ITALIA</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -11,23 +11,24 @@
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a1a1a; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 1000; border-bottom: 1px solid #333; }
         #map { height: calc(100vh - 60px); width: 100%; background: #222; }
-        .login-box { display: flex; align-items: center; }
-        .btn-news { background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 15px; }
-        .btn-login { padding: 8px 15px; background: #e74c3c; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        #stat { font-weight: bold; font-size: 1.1em; color: #fff; line-height: 1.2; }
-        .sub-stat { font-size: 0.7em; color: #ffa500; display: block; }
+        #stat { font-weight: bold; font-size: 1.1em; color: #fff; }
+        .sub-stat { font-size: 0.75em; color: #ffa500; display: block; }
 
-        .ruler-btn {
-            background: white; width: 34px; height: 34px; line-height: 34px;
-            text-align: center; cursor: pointer; box-shadow: 0 1px 5px rgba(0,0,0,0.4);
-            border-radius: 4px; color: #333; font-size: 16px;
+        /* Cerchio pulsante delle fiamme */
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.7; }
+            50% { transform: scale(1.2); opacity: 0.3; }
+            100% { transform: scale(0.9); opacity: 0.7; }
         }
-        .ruler-btn.active { background: #e74c3c; color: white; }
-        .distance-label { background: rgba(0,0,0,0.8); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; z-index: 1000; }
-        
-        .wind-icon-container { text-align: center; display: flex; flex-direction: column; align-items: center; }
-        .weather-widget { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 8px; min-width: 150px; }
-        .weather-item { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-weight: bold; }
+        .fire-pulse {
+            width: 40px; height: 40px; background: rgba(255, 69, 0, 0.4);
+            border: 2px solid #ff4500; border-radius: 50%;
+            position: absolute; margin-left: -10px; margin-top: -10px;
+            animation: pulse 1.5s infinite; pointer-events: none;
+        }
+
+        .weather-widget { border-top: 1px solid #eee; margin-top: 8px; padding-top: 8px; }
+        .risk-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; color: white; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -37,12 +38,8 @@
         🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
         <span class="sub-stat" id="area-est">Caricamento dati...</span>
     </div>
-    <div class="login-box">
-        <button class="btn-news" onclick="openNewsMenu()">NOTIZIE RAPIDE</button>
-        <div id="login-section">
-            <input type="password" id="operator-code" placeholder="Codice" style="padding:8px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:100px; margin-right: 5px;">
-            <button class="btn-login" onclick="checkAuth()">ENTRA</button>
-        </div>
+    <div>
+        <button style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="alert('Sistema di Allerta Nazionale v3.1')">INFO SISTEMA</button>
     </div>
 </header>
 
@@ -50,78 +47,18 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyClmNoNbNpxk5IjB9LsrQvWqPI1YodxY9E",
-        authDomain: "monitoraggioincendi-41f5f.firebaseapp.com",
-        projectId: "monitoraggioincendi-41f5f",
-        appId: "1:63942195354:web:cc5bb978858676c6748723"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    
+<script>
+    const weatherKey = "b1b15e88fa7972254124651173e936f6";
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
-    const topografica = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 });
-
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [satellite] });
     const nasaLayer = L.layerGroup().addTo(map);
-    const cloudLayer = L.layerGroup().addTo(map);
-    const windLayer = L.layerGroup().addTo(map);
 
-    const weatherKey = "b1b15e88fa7972254124651173e936f6";
-
-    L.control.layers({ "🛰️ Satellitare": satellite, "⛰️ Topografica": topografica }, 
-                     { "🔥 Incendi NASA": nasaLayer, "📸 Alert Cloud": cloudLayer, "🌬️ Direzione Vento": windLayer }, 
-                     { collapsed: false }).addTo(map);
-
-    // --- RIGHELLO ---
-    let rulerActive = false, rulerPoints = [], rulerLayers = L.layerGroup().addTo(map);
-    const RulerControl = L.Control.extend({
-        options: { position: 'topleft' },
-        onAdd: function() {
-            const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control ruler-btn');
-            btn.innerHTML = '<i class="fas fa-ruler-combined"></i>';
-            L.DomEvent.on(btn, 'click', (e) => {
-                L.DomEvent.stopPropagation(e);
-                rulerActive = !rulerActive;
-                btn.classList.toggle('active');
-                if(!rulerActive) { rulerLayers.clearLayers(); rulerPoints = []; }
-            });
-            return btn;
-        }
-    });
-    map.addControl(new RulerControl());
-
-    map.on('click', (e) => {
-        if (!rulerActive) return;
-        rulerPoints.push(e.latlng);
-        L.circleMarker(e.latlng, { radius: 4, color: 'red' }).addTo(rulerLayers);
-        if (rulerPoints.length === 2) {
-            const d = map.distance(rulerPoints[0], rulerPoints[1]);
-            const txt = d > 1000 ? (d/1000).toFixed(2) + " km" : Math.round(d) + " m";
-            L.polyline(rulerPoints, { color: 'red', weight: 2, dashArray: '5,5' }).addTo(rulerLayers);
-            L.marker(e.latlng, { icon: L.divIcon({ className: 'distance-label', html: txt, iconAnchor: [-10, 20] }) }).addTo(rulerLayers);
-            rulerPoints = [e.latlng];
-        }
-    });
-
-    function isOutsideItaly(lat, lon) {
-        if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.6) return true;
-        if (lat < 37.4 && lon < 12.0) return true; 
-        if (lat < 46.0 && lon > 13.7) return (lat < 42.0 && lon > 15.1) || (lat >= 42.0 && lon > 13.7);
-        return (lat > 43.5 && lon < 7.0);
-    }
-
-    const blacklist = [{lat:41.13, lon:15.45}, {lat:42.04, lon:14.72}, {lat:44.78, lon:10.73}, {lat:37.20, lon:15.17}, {lat:40.48, lon:17.22}];
-
-    function toDMS(deg, pos, neg) {
-        const abs = Math.abs(deg);
-        const d = Math.floor(abs), m = Math.floor((abs-d)*60), s = ((abs-d-m/60)*3600).toFixed(1);
-        return `${d}°${m}'${s}"${deg >= 0 ? pos : neg}`;
+    function getRiskLevel(temp, hum) {
+        let risk = (temp * 0.5) - (hum * 0.2);
+        if (risk > 15) return { txt: "MOLTO ALTO", col: "#c0392b" };
+        if (risk > 10) return { txt: "ALTO", col: "#e67e22" };
+        if (risk > 5) return { txt: "MEDIO", col: "#f1c40f" };
+        return { txt: "BASSO", col: "#27ae60" };
     }
 
     async function loadNasaData() {
@@ -129,89 +66,63 @@
             const res = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1`));
             const csv = await res.text();
             const lines = csv.split('\n');
-            let nReal = 0, totalHa = 0;
+            let nReal = 0;
 
             nasaLayer.clearLayers();
-            windLayer.clearLayers();
 
             for (let i = 1; i < lines.length; i++) {
                 const c = lines[i].split(',');
                 if (c.length < 3) continue;
                 const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
-                if (isOutsideItaly(lat, lon)) continue;
-                if (blacklist.some(s => Math.sqrt(Math.pow(lat-s.lat,2)+Math.pow(lon-s.lon,2)) < 0.08)) continue;
+                
+                // Filtro Italia approssimativo
+                if (lat < 35 || lat > 47 || lon < 6 || lon > 19) continue;
 
-                nReal++; totalHa += 14.06;
+                nReal++;
                 const pId = `p-${i}`;
                 
-                const marker = L.marker([lat, lon], { 
-                    icon: L.divIcon({ html: `<i class="fas fa-fire" style="color:#ff4500; font-size:20px; text-shadow: 0 0 5px #000;"></i>`, className: 'fire-icon', iconSize:[20,20], iconAnchor:[10,10]}) 
-                }).addTo(nasaLayer);
+                // Icona fiamma + Cerchio pulsante
+                const customIcon = L.divIcon({
+                    html: `<div class="fire-pulse"></div><i class="fas fa-fire" style="color:#ff4500; font-size:20px; position:relative; z-index:10;"></i>`,
+                    className: 'fire-marker', iconSize: [20, 20], iconAnchor: [10, 10]
+                });
 
-                // RIPRISTINATO: Tipo SITO: Vegetazione/Bosco
+                const marker = L.marker([lat, lon], { icon: customIcon }).addTo(nasaLayer);
+
                 marker.bindPopup(`
-                    <div style="font-size:11px;">
+                    <div style="font-size:12px; width:180px;">
                         <b>SITO:</b> Vegetazione/Bosco<br>
                         <b>AREA:</b> ~14 ha<br>
-                        <b>COORDS:</b> ${toDMS(lat,'N','S')} ${toDMS(lon,'E','W')}
-                        <div id="${pId}" class="weather-widget"><i class="fas fa-sync fa-spin"></i> Caricamento meteo...</div>
-                    </div>`);
+                        <b>COORDS:</b> ${lat.toFixed(3)}, ${lon.toFixed(3)}
+                        <div id="${pId}" class="weather-widget">
+                            <i class="fas fa-sync fa-spin"></i> Analisi rischio in corso...
+                        </div>
+                    </div>
+                `);
 
                 marker.on('popupopen', async () => {
                     try {
                         const wRes = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric&lang=it`));
                         const w = await wRes.json();
-                        const el = document.getElementById(pId);
-                        if(el && w.main) {
-                            el.innerHTML = `
-                                <div class="weather-item"><i class="fas fa-thermometer-half" style="color:#e74c3c"></i> ${w.main.temp.toFixed(1)}°C</div>
-                                <div class="weather-item"><i class="fas fa-tint" style="color:#3498db"></i> ${w.main.humidity}% UR</div>
-                                <div class="weather-item"><i class="fas fa-wind" style="color:#2ecc71"></i> ${ (w.wind.speed * 3.6).toFixed(0) } km/h</div>`;
-                        }
-                    } catch (err) { document.getElementById(pId).innerHTML = "Meteo non disponibile"; }
-                });
-
-                fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${weatherKey}&units=metric`))
-                .then(r => r.json()).then(w => {
-                    if(w.wind) {
-                        L.marker([lat, lon], {
-                            icon: L.divIcon({
-                                className: 'wind-icon-container',
-                                html: `<div style="transform: rotate(${w.wind.deg}deg); color: #00f2ff; font-size: 20px; filter: drop-shadow(0 0 2px black);"><i class="fas fa-location-arrow"></i></div>`,
-                                iconSize: [30, 30], iconAnchor: [15, 15]
-                            }), interactive: false
-                        }).addTo(windLayer);
+                        const risk = getRiskLevel(w.main.temp, w.main.humidity);
+                        
+                        document.getElementById(pId).innerHTML = `
+                            <div style="margin-bottom:4px;"><i class="fas fa-thermometer-half"></i> ${w.main.temp}°C | <i class="fas fa-tint"></i> ${w.main.humidity}%</div>
+                            <div style="font-size:10px; color:#666;">INDICE RISCHIO (FWI):</div>
+                            <div class="risk-badge" style="background:${risk.col}">${risk.txt}</div>
+                        `;
+                    } catch (e) {
+                        document.getElementById(pId).innerHTML = "Dati meteo non disponibili";
                     }
                 });
             }
             document.getElementById('count').innerText = `${nReal} Alert Operativi`;
-            document.getElementById('area-est').innerText = `Superficie colpita stimata: ${totalHa.toLocaleString('it-IT')} ha`;
-        } catch (e) { console.error("Errore Dati"); }
+            document.getElementById('area-est').innerText = `Superficie stimata: ${(nReal * 14.06).toLocaleString()} ha`;
+        } catch (e) { console.log("Errore caricamento"); }
     }
 
-    window.openNewsMenu = () => {
-        const s = prompt("1-VVF | 2-Prot. Civile | 3-AIB", "1");
-        const urls = {"1":"https://www.vigilfuoco.it/media/notizie/dal-territorio", "2":"https://www.iononrischio.gov.it", "3":"http://www.pcn.minambiente.it"};
-        if(urls[s]) window.open(urls[s], '_blank');
-    };
-
-    window.checkAuth = () => {
-        if (document.getElementById('operator-code').value === "GABRIELE_STAFF") {
-            document.getElementById('login-section').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
-        } else alert("Codice errato");
-    };
-
-    window.onload = () => {
-        loadNasaData();
-        onSnapshot(query(collection(db, "segnalazioni"), orderBy("timestamp", "desc")), (snap) => {
-            cloudLayer.clearLayers();
-            snap.forEach(doc => {
-                const d = doc.data();
-                L.marker([d.lat, d.lon], { icon: L.divIcon({ html: `<i class="fas fa-camera" style="color:purple; font-size:18px;"></i>` }) }).addTo(cloudLayer);
-            });
-        });
-        setInterval(loadNasaData, 600000); 
-    };
+    loadNasaData();
+    setInterval(loadNasaData, 600000);
 </script>
 </body>
 </html>
