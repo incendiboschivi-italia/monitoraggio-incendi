@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA - FULL BLACKLIST</title>
+    <title>MONITORAGGIO INCENDI ITALIA - ZERO ESTERO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -12,15 +12,12 @@
         #map { height: calc(100vh - 60px); width: 100%; background: #000; }
         .stats { font-weight: bold; line-height: 1.2; }
         .area-info { font-size: 0.75em; color: #ffa500; display: block; }
-        
-        .legend { background: rgba(255,255,255,0.95); padding: 12px; border-radius: 8px; line-height: 1.5; font-size: 11px; box-shadow: 0 0 15px rgba(0,0,0,0.4); color: #333; }
-        .legend b { display: block; margin-bottom: 5px; border-bottom: 1px solid #ddd; color: #000; }
+        .legend { background: rgba(255,255,255,0.95); padding: 12px; border-radius: 8px; font-size: 11px; color: #333; box-shadow: 0 0 15px rgba(0,0,0,0.4); }
+        .legend b { display: block; margin-bottom: 5px; border-bottom: 1px solid #ddd; }
         .legend i { width: 14px; height: 14px; display: inline-block; margin-right: 8px; border-radius: 3px; vertical-align: middle; }
-
         .fire-marker { width: 30px !important; height: 30px !important; display: flex; align-items: center; justify-content: center; will-change: transform; }
         @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.4); opacity: 0.1; } 100% { transform: scale(0.8); opacity: 0.8; } }
         .pulse { width: 30px; height: 30px; border-radius: 50%; position: absolute; animation: pulse 1.8s infinite; pointer-events: none; }
-
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-refresh { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
@@ -30,7 +27,7 @@
 <header>
     <div class="stats">
         🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
-        <span class="area-info" id="area">Inizializzazione sistema...</span>
+        <span class="area-info" id="area">Sistema di filtraggio confini attivo...</span>
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
         <button class="btn-news" onclick="openNews()">NOTIZIE RAPIDE</button>
@@ -51,56 +48,54 @@
     const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
     
     const firesLayer = L.layerGroup().addTo(map);
-
     const baseLayers = { "🛰️ Vista Satellitare": sat, "⛰️ Mappa Topografica": topo };
     L.control.layers(baseLayers, null, {collapsed: false, position: 'topright'}).addTo(map);
 
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `
-            <b>LIVELLO TERMICO (°C)</b>
+        div.innerHTML = `<b>LIVELLO TERMICO (°C)</b>
             <div><i style="background: #e74c3c"></i> Critico (> 67°C)</div>
             <div><i style="background: #e67e22"></i> Elevato (52°C - 67°C)</div>
-            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>
-            <hr style="margin:8px 0; border:0; border-top:1px solid #ddd;">
-            <div style="font-size:10px; color:#666;"><i class="fas fa-fire" style="background:none; color:#ff4500; width:auto;"></i> Dato VIIRS NASA</div>
-        `;
+            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>`;
         return div;
     };
     legend.addTo(map);
 
-    // LISTA BLACKLIST COMPLETA E AGGIORNATA
-    const blacklist = [
-        [37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82],
-        [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36],
-        [44.43, 8.75], [43.58, 10.34], [39.11, 9.04], [40.627, 18.003],
-        [40.514, 17.206], [37.211, 15.170], [37.438, 15.031], [38.792, 15.213],
-        [41.695, 13.142], [39.075, 9.018], [39.212, 8.406], [40.554, 9.672],
-        [42.566, 12.672], [43.363, 12.547], [43.852, 12.781], [44.678, 10.851],
-        [45.145, 9.941], [45.458, 10.457], [45.528, 9.799], [45.412, 9.116],
-        [45.485, 9.039], [45.639, 9.605], [45.642, 9.260], [45.782, 8.682]
-    ];
+    const blacklist = [[37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82], [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36], [44.43, 8.75], [43.58, 10.34], [39.11, 9.04], [40.627, 18.003], [40.514, 17.206], [37.211, 15.170], [37.438, 15.031], [38.792, 15.213], [41.695, 13.142], [39.075, 9.018], [39.212, 8.406], [40.554, 9.672], [42.566, 12.672], [43.363, 12.547], [43.852, 12.781], [44.678, 10.851], [45.145, 9.941], [45.458, 10.457], [45.528, 9.799], [45.412, 9.116], [45.485, 9.039], [45.639, 9.605], [45.642, 9.260], [45.782, 8.682]];
 
     function isWithinItaly(lat, lon) {
-        // Filtri geografici per escludere estero
+        // 1. BLOCCO CORSICA (Area cerchiata centrale nel tuo file)
+        if (lon > 8.5 && lon < 9.6 && lat > 41.3 && lat < 43.1) return false;
+
+        // 2. BLOCCO BALCANI / CROAZIA (Area cerchiata a destra)
+        if (lon > 13.7) {
+            if (lat > 45.1) return false; // Istria/Slovenia
+            if (lat < 44.5 && lon > 14.5) return false; // Costa Croata
+        }
+
+        // 3. BLOCCO FRANCIA / SVIZZERA (Area cerchiata in alto a sinistra)
+        if (lat > 46.8) return false; // Oltre confine alpino nord
+        if (lon < 6.6) return false; // Oltre confine francese ovest
+
+        // 4. BLOCCO NORD AFRICA (Parte bassa dello screenshot)
+        if (lat < 36.5) return false; 
+
+        // 5. FILTRO GENERALE BOX ITALIA
         if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.5) return false;
-        if (lat < 37.0 && lon < 12.0) return false; // Esclusione Africa
-        if (lon > 13.9 && lat > 45.1) return false; // Esclusione Balcani
-        
-        // Controllo Blacklist chirurgico
+
+        // 6. BLACKLIST INDUSTRIALE
         return !blacklist.some(s => Math.abs(s[0] - lat) < 0.05 && Math.abs(s[1] - lon) < 0.05);
     }
 
     async function loadFires() {
-        document.getElementById('area').innerText = "Filtraggio dati in corso...";
+        document.getElementById('area').innerText = "Filtraggio zone estere in corso...";
         try {
             const response = await fetch("https://corsproxy.io/?" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1"));
             const text = await response.text();
             const rows = text.split('\n').slice(1);
             firesLayer.clearLayers();
             let count = 0;
-
             rows.forEach(row => {
                 const d = row.split(',');
                 if (d.length < 3) return;
@@ -119,9 +114,9 @@
                     }).addTo(firesLayer).bindPopup(`<b>ALERT</b><br>Temp: ${tempC}°C`);
                 }
             });
-            document.getElementById('count').innerText = `${count} Alert Operativi`;
+            document.getElementById('count').innerText = `${count} Alert Italiani`;
             document.getElementById('area').innerText = `Superficie Italia: ${(count * 14.06).toFixed(2)} ha`;
-        } catch (e) { document.getElementById('area').innerText = "Errore NASA."; }
+        } catch (e) { document.getElementById('area').innerText = "Errore dati."; }
     }
 
     function openNews() {
@@ -135,7 +130,6 @@
             document.getElementById('login-zone').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
         }
     }
-
     loadFires();
     setInterval(loadFires, 600000);
 </script>
