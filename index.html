@@ -52,7 +52,6 @@
     const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [sat] });
     const firesLayer = L.layerGroup().addTo(map);
 
-    // Selettore Layer: Solo per le mappe, incendi sempre visibili
     const baseLayers = { "🛰️ Vista Satellitare": sat, "⛰️ Mappa Topografica": topo };
     L.control.layers(baseLayers, null, {collapsed: false, position: 'topright'}).addTo(map);
 
@@ -79,8 +78,10 @@
     }
 
     async function loadFires() {
+        document.getElementById('area').innerText = "Caricamento dati NASA...";
         try {
-            const url = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1");
+            // Utilizzo di cors-anywhere per maggiore stabilità
+            const url = "https://corsproxy.io/?" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1");
             const response = await fetch(url);
             const text = await response.text();
             const rows = text.split('\n').slice(1);
@@ -93,7 +94,7 @@
                 if (data.length < 3) return;
                 const lat = parseFloat(data[0]), lon = parseFloat(data[1]);
                 const tempK = parseFloat(data[2]);
-                const tempC = (tempK - 273.15).toFixed(1); // Conversione in Celsius
+                const tempC = (tempK - 273.15).toFixed(1);
 
                 if (lat > 35.5 && lat < 47.5 && lon > 6.5 && lon < 18.5) {
                     activeFires++;
@@ -121,7 +122,10 @@
             });
             document.getElementById('count').innerText = `${activeFires} Alert Operativi`;
             document.getElementById('area').innerText = `Superficie totale stimata: ${(activeFires * 14.06).toFixed(2)} ha`;
-        } catch (e) { console.log("Errore aggiornamento"); }
+        } catch (e) { 
+            document.getElementById('area').innerText = "Errore di connessione ai dati NASA.";
+            console.log("Errore:", e); 
+        }
     }
 
     function openNews() {
