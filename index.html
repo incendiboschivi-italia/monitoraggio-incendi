@@ -3,22 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA - HIGH PERFORMANCE</title>
+    <title>MONITORAGGIO INCENDI ITALIA - SISTEMA INTEGRATO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; background: #1a1a1a; overflow: hidden; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; border-bottom: 1px solid #333; z-index: 1001; position: relative; }
-        #map { height: calc(100vh - 60px); width: 100%; background: #000; }
+        #map { height: calc(100vh - 60px); width: 100%; }
         .stats { font-weight: bold; line-height: 1.2; }
         .area-info { font-size: 0.75em; color: #ffa500; display: block; }
         
-        .legend { background: rgba(255,255,255,0.95); padding: 12px; border-radius: 8px; font-size: 11px; color: #333; }
-        
-        /* OTTIMIZZAZIONE PERFORMANCE: Animazione più leggera */
-        .fire-marker { width: 30px !important; height: 30px !important; display: flex; align-items: center; justify-content: center; will-change: transform; }
-        @keyframes pulse-lite { 0% { opacity: 0.8; transform: scale(0.8); } 100% { opacity: 0; transform: scale(1.4); } }
-        .pulse { width: 30px; height: 30px; border-radius: 50%; position: absolute; animation: pulse-lite 2s infinite; pointer-events: none; }
+        .legend { background: rgba(255,255,255,0.95); padding: 12px; border-radius: 8px; line-height: 1.5; font-size: 11px; box-shadow: 0 0 15px rgba(0,0,0,0.4); color: #333; }
+        .legend b { display: block; margin-bottom: 5px; border-bottom: 1px solid #ddd; color: #000; }
+        .legend i { width: 14px; height: 14px; display: inline-block; margin-right: 8px; border-radius: 3px; vertical-align: middle; }
+
+        .fire-marker { width: 30px !important; height: 30px !important; display: flex; align-items: center; justify-content: center; }
+        @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.5); opacity: 0.1; } 100% { transform: scale(0.8); opacity: 0.8; } }
+        .pulse { width: 34px; height: 34px; border-radius: 50%; position: absolute; animation: pulse 1.8s infinite; pointer-events: none; }
 
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-refresh { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -28,15 +29,15 @@
 
 <header>
     <div class="stats">
-        🇮🇹 LIVE MAP: <span id="count">...</span>
-        <span class="area-info" id="area">Sincronizzazione...</span>
+        🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
+        <span class="area-info" id="area">Inizializzazione sistema...</span>
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
-        <button class="btn-news" onclick="openNews()">NOTIZIE</button>
-        <button class="btn-refresh" onclick="loadFires()"><i class="fas fa-sync"></i> AGGIORNA</button>
+        <button class="btn-news" onclick="openNews()">NOTIZIE RAPIDE</button>
+        <button class="btn-refresh" onclick="loadFires()"><i class="fas fa-sync"></i> REFRESH</button>
         <div id="login-zone">
-            <input type="password" id="op-code" placeholder="Staff" style="padding:7px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:70px;">
-            <button onclick="checkAuth()" style="padding: 7px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">INVIÀ</button>
+            <input type="password" id="op-code" placeholder="Staff" style="padding:7px; border-radius:4px; border:1px solid #444; background:#333; color:white; width:80px;">
+            <button onclick="checkAuth()" style="padding: 7px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">ENTRA</button>
         </div>
     </div>
 </header>
@@ -45,36 +46,57 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Inizializzazione mappa con preferCanvas per fluidità
-    const map = L.map('map', { 
-        center: [42.0, 12.5], 
-        zoom: 6, 
-        preferCanvas: true,
-        zoomControl: false 
-    });
+    // Configurazione Mappe
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+    const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
     
-    L.control.zoom({ position: 'bottomleft' }).addTo(map);
-
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    const map = L.map('map', { center: [42.0, 12.5], zoom: 6, layers: [sat] });
     const firesLayer = L.layerGroup().addTo(map);
 
-    // Blacklist raffinerie (Coordinate precise)
+    // Ripristino Selettore Mappe
+    const baseLayers = { "🛰️ Vista Satellitare": sat, "⛰️ Mappa Topografica": topo };
+    L.control.layers(baseLayers, null, {collapsed: false, position: 'topright'}).addTo(map);
+
+    // Ripristino Legenda
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+            <b>LIVELLO TERMICO (°C)</b>
+            <div><i style="background: #e74c3c"></i> Critico (> 67°C)</div>
+            <div><i style="background: #e67e22"></i> Elevato (52°C - 67°C)</div>
+            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>
+            <hr style="margin:8px 0; border:0; border-top:1px solid #ddd;">
+            <div style="font-size:10px; color:#666;"><i class="fas fa-fire" style="background:none; color:#ff4500; width:auto;"></i> Dato VIIRS NASA</div>
+        `;
+        return div;
+    };
+    legend.addTo(map);
+
+    // Blacklist raffinerie
     const blacklist = [
-        [37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82], 
-        [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36]
+        [37.1, 15.2], [44.9, 8.8], [40.6, 14.9], [42.1, 12.0], [45.4, 12.2], [37.1, 14.2], [40.4, 17.2]
     ];
 
-    function isSafe(lat, lon) {
-        // Filtro geografico stretto (Italia)
-        if (lat < 35.4 || lat > 47.2 || lon < 6.6 || lon > 18.6) return false;
-        // Check blacklist
-        return !blacklist.some(s => Math.abs(s[0] - lat) < 0.05 && Math.abs(s[1] - lon) < 0.05);
+    // BLOCCO RIGOROSO CONFINI (Filtro chirurgico per screenshot image_90d171.jpg)
+    function isWithinItaly(lat, lon) {
+        // Esclude categoricamente tutto ciò che è sotto Lampedusa o sopra le Alpi
+        if (lat < 35.4 || lat > 47.1 || lon < 6.6 || lon > 18.5) return false;
+        
+        // Esclude la costa Africana (Tunisia/Libia) che rientra nel box
+        if (lat < 37.0 && lon < 12.0) return false;
+        
+        // Esclude i Balcani (Croazia/Albania)
+        if (lon > 13.8 && lat > 45.0) return false; 
+        if (lon > 16.5 && lat < 42.0) return false;
+
+        // Check Blacklist Industriale
+        const nearIndustrial = blacklist.some(s => Math.abs(s[0] - lat) < 0.1 && Math.abs(s[1] - lon) < 0.1);
+        return !nearIndustrial;
     }
 
     async function loadFires() {
-        const status = document.getElementById('area');
-        status.innerText = "Recupero dati NASA...";
-        
+        document.getElementById('area').innerText = "Filtraggio confini nazionali...";
         try {
             const response = await fetch("https://corsproxy.io/?" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1"));
             const text = await response.text();
@@ -86,12 +108,9 @@
             rows.forEach(row => {
                 const d = row.split(',');
                 if (d.length < 3) return;
+                const lat = parseFloat(d[0]), lon = parseFloat(d[1]);
                 
-                const lat = parseFloat(d[0]);
-                const lon = parseFloat(d[1]);
-                
-                // PERFORMANCE: Scartiamo subito se fuori Italia
-                if (isSafe(lat, lon)) {
+                if (isWithinItaly(lat, lon)) {
                     count++;
                     const tempC = (parseFloat(d[2]) - 273.15).toFixed(1);
                     const color = tempC > 67 ? "#e74c3c" : (tempC > 52 ? "#e67e22" : "#f1c40f");
@@ -101,27 +120,26 @@
                             className: 'fire-marker',
                             iconSize: [30, 30],
                             iconAnchor: [15, 15],
-                            html: `<div class="pulse" style="border: 2px solid ${color}"></div><i class="fas fa-fire" style="color: ${color}; font-size: 16px; z-index:10; text-shadow: 0 0 3px #000;"></i>`
+                            html: `<div class="pulse" style="background:${color}33; border:1px solid ${color}"></div><i class="fas fa-fire" style="color:${color}; font-size:18px; text-shadow: 0 0 3px #000;"></i>`
                         })
-                    }).addTo(firesLayer).bindPopup(`<b>ALERT</b><br>Temp: ${tempC}°C`);
+                    }).addTo(firesLayer).bindPopup(`<b>INCENDIO RILEVATO</b><br>Temp: ${tempC}°C`);
                 }
             });
-
-            document.getElementById('count').innerText = `${count} Incendi Attivi`;
-            status.innerText = `Area monitorata: Italia (Filtro Anti-Raffinerie Attivo)`;
+            document.getElementById('count').innerText = `${count} Alert Operativi`;
+            document.getElementById('area').innerText = `Superficie stimata in Italia: ${(count * 14.06).toFixed(2)} ha`;
         } catch (e) {
-            status.innerText = "Errore di rete. Riprova.";
+            document.getElementById('area').innerText = "Errore connessione NASA.";
         }
     }
 
     function checkAuth() {
         if(document.getElementById('op-code').value === "GABRIELE_STAFF") {
-            document.getElementById('login-zone').innerHTML = "<b style='color:#2ecc71'>OK</b>";
+            document.getElementById('login-zone').innerHTML = "<b style='color:#2ecc71'>⭐ OPERATIVO</b>";
         }
     }
 
     loadFires();
-    setInterval(loadFires, 300000);
+    setInterval(loadFires, 600000);
 </script>
 </body>
 </html>
