@@ -17,7 +17,6 @@
         .legend b { display: block; margin-bottom: 5px; border-bottom: 1px solid #ddd; color: #000; }
         .legend i { width: 14px; height: 14px; display: inline-block; margin-right: 8px; border-radius: 3px; vertical-align: middle; }
 
-        /* FIX POSIZIONAMENTO: Centriamo l'icona rispetto al punto GPS */
         .fire-marker { width: 30px !important; height: 30px !important; display: flex; align-items: center; justify-content: center; }
 
         @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.5); opacity: 0.1; } 100% { transform: scale(0.8); opacity: 0.8; } }
@@ -72,6 +71,19 @@
     };
     legend.addTo(map);
 
+    // BLACKLIST RAFFINERIE E SITI INDUSTRIALI (Falsi positivi termici)
+    const blacklist = [
+        {lat: 37.1, lon: 15.2}, // Priolo
+        {lat: 44.9, lon: 8.8},  // Sannazzaro de' Burgondi
+        {lat: 40.6, lon: 14.9}, // Salerno Area Ind.
+        {lat: 42.1, lon: 12.0}, // Civitavecchia
+        {lat: 45.4, lon: 12.2}  // Porto Marghera
+    ];
+
+    function isBlacklisted(lat, lon) {
+        return blacklist.some(site => Math.abs(site.lat - lat) < 0.15 && Math.abs(site.lon - lon) < 0.15);
+    }
+
     function toDMS(deg, p, n) {
         const d = Math.floor(Math.abs(deg));
         const m = Math.floor((Math.abs(deg) - d) * 60);
@@ -80,7 +92,7 @@
     }
 
     async function loadFires() {
-        document.getElementById('area').innerText = "Caricamento dati NASA...";
+        document.getElementById('area').innerText = "Analisi territorio nazionale...";
         try {
             const url = "https://corsproxy.io/?" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1");
             const response = await fetch(url);
@@ -97,7 +109,8 @@
                 const tempK = parseFloat(data[2]);
                 const tempC = (tempK - 273.15).toFixed(1);
 
-                if (lat > 35.5 && lat < 47.5 && lon > 6.5 && lon < 18.5) {
+                // FILTRO CONFINI ITALIA + BLACKLIST RAFFINERIE
+                if (lat > 35.5 && lat < 47.5 && lon > 6.5 && lon < 18.5 && !isBlacklisted(lat, lon)) {
                     activeFires++;
                     let color = "#f1c40f"; 
                     if (tempC > 52) color = "#e67e22"; 
@@ -106,8 +119,8 @@
                     const marker = L.marker([lat, lon], {
                         icon: L.divIcon({
                             className: 'fire-marker',
-                            iconSize: [30, 30], // FISSA LA DIMENSIONE
-                            iconAnchor: [15, 15], // FISSA L'ANCORAGGIO AL CENTRO
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15],
                             html: `<div class="pulse" style="background: ${color}55; border: 1px solid ${color}"></div><i class="fas fa-fire" style="color: ${color}; font-size: 18px; position: relative; z-index:10; text-shadow: 0 0 3px black;"></i>`
                         })
                     }).addTo(firesLayer);
@@ -115,7 +128,7 @@
                     marker.bindPopup(`
                         <div style="font-size:12px; line-height:1.4;">
                             <b style="color:#d35400;">⚠️ ALERT INCENDIO</b><hr>
-                            <b>SITO:</b> Bosco / Vegetazione<br>
+                            <b>SITO:</b> Area Boschiva / Vegetazione<br>
                             <b>TEMP:</b> ${tempC}°C<br>
                             <b>COORDS:</b> ${toDMS(lat, 'N', 'S')} ${toDMS(lon, 'E', 'W')}<br>
                             <b>AREA:</b> ~14.06 ha
@@ -126,7 +139,7 @@
             document.getElementById('count').innerText = `${activeFires} Alert Operativi`;
             document.getElementById('area').innerText = `Superficie totale stimata: ${(activeFires * 14.06).toFixed(2)} ha`;
         } catch (e) { 
-            document.getElementById('area').innerText = "Errore di connessione ai dati NASA.";
+            document.getElementById('area').innerText = "Errore connessione NASA.";
             console.log("Errore:", e); 
         }
     }
