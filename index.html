@@ -18,12 +18,9 @@
         .fire-marker { width: 30px !important; height: 30px !important; display: flex; align-items: center; justify-content: center; }
         @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.4); opacity: 0.1; } 100% { transform: scale(0.8); opacity: 0.8; } }
         .pulse { width: 30px; height: 30px; border-radius: 50%; position: absolute; animation: pulse 1.8s infinite; pointer-events: none; }
-        
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-refresh { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-report { background: #e67e22; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        
-        /* Pannelli UI */
         #report-panel, #auth-panel { position: fixed; top: 70px; left: 20px; background: #2c3e50; color: white; padding: 15px; border-radius: 8px; z-index: 2000; display: none; width: 280px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
         input, select { width: 100%; margin-bottom: 10px; padding: 8px; box-sizing: border-box; border-radius: 4px; border: none; }
         label { font-size: 11px; color: #bdc3c7; display: block; margin-bottom: 4px; }
@@ -36,7 +33,7 @@
 <header>
     <div class="stats">
         🇮🇹 MONITORAGGIO ITALIA: <span id="count">...</span>
-        <span class="area-info" id="area">Sistema di filtraggio confini attivo...</span>
+        <span class="area-info" id="area">Confini Nazionali Protetti</span>
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
         <button class="btn-report" onclick="checkAccessForReport()"><i class="fas fa-bullhorn"></i> SEGNALA</button>
@@ -54,7 +51,7 @@
     <input type="email" id="auth-email" placeholder="La tua email">
     <input type="password" id="auth-pass" placeholder="Password">
     <button onclick="handleAuth()" id="auth-btn" style="width:100%; background:#e74c3c; color:white; border:none; padding:10px; border-radius:4px; cursor:pointer; font-weight:bold; margin-bottom:10px;">ENTRA</button>
-    <span class="auth-toggle" id="auth-switch" onclick="switchAuthMode()">Non hai un account? Registrati</span>
+    <span class="auth-toggle" id="auth-switch" onclick="switchAuthMode()">Crea un nuovo account</span>
 </div>
 
 <div id="report-panel">
@@ -66,13 +63,12 @@
     <select id="rep-type" required>
         <option value="">-- Seleziona --</option>
         <option value="Boschivo">Boschivo</option>
-        <option value="Interfaccia">Interfaccia (Case/Bosco)</option>
-        <option value="Sterpaglie">Sterpaglie / Agricolo</option>
-        <option value="Industriale">Industriale</option>
+        <option value="Interfaccia">Interfaccia</option>
+        <option value="Sterpaglie">Sterpaglie</option>
     </select>
     <label>3. Foto (Obbligatorio)</label>
     <input type="file" id="rep-photo" accept="image/*" required>
-    <button onclick="submitManualReport()" style="width:100%; background:#2ecc71; color:white; border:none; padding:10px; border-radius:4px; cursor:pointer; font-weight:bold;">INVIA SEGNALAZIONE</button>
+    <button onclick="submitManualReport()" style="width:100%; background:#2ecc71; color:white; border:none; padding:10px; border-radius:4px; cursor:pointer; font-weight:bold;">INVIA</button>
 </div>
 
 <div id="map"></div>
@@ -89,75 +85,69 @@
     L.control.layers(baseLayers, null, {collapsed: false, position: 'topright'}).addTo(map);
 
     let currentUser = null;
-    let authMode = 'login'; // 'login' o 'register'
+    let authMode = 'login';
 
-    // --- LOGICA AUTENTICAZIONE ---
+    const blacklist = [[37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82], [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36], [44.43, 8.75], [43.58, 10.34], [39.11, 9.04], [40.627, 18.003], [40.514, 17.206], [37.211, 15.170], [37.438, 15.031], [38.792, 15.213], [41.695, 13.142], [39.075, 9.018], [39.212, 8.406], [40.554, 9.672], [42.566, 12.672], [43.363, 12.547], [43.852, 12.781], [44.678, 10.851], [45.145, 9.941], [45.458, 10.457], [45.528, 9.799], [45.412, 9.116], [45.485, 9.039], [45.639, 9.605], [45.642, 9.260], [45.782, 8.682]];
+
+    // --- FILTRO GEOGRAFICO BLINDATO ---
+    function isWithinItaly(lat, lon) {
+        // 1. Taglio Nord Africa (Tutto sotto Lampedusa fuori)
+        if (lat < 36.6) return false;
+        
+        // 2. Taglio Ovest (Francia)
+        if (lon < 6.6) return false;
+        
+        // 3. Taglio Corsica e Sardegna Ovest
+        if (lon < 8.2 && lat > 41.2) return false;
+        if (lon > 8.5 && lon < 9.6 && lat > 41.3 && lat < 43.1) return false;
+
+        // 4. Taglio Est (Balcani/Slovenia)
+        if (lon > 13.6 && lat > 45.4) return false; // Confine Trieste
+        if (lon > 13.9 && lat > 44.5) return false; // Confine Istria
+        if (lon > 15.0 && lat > 42.5) return false; // Mare Adriatico centrale
+        if (lon > 18.5) return false; // Oltre la Puglia
+
+        // 5. Taglio Nord (Svizzera/Austria)
+        if (lat > 47.1) return false;
+        if (lat > 46.6 && lon < 10.4 && lon > 8.0) return false; // Blocca specificamente la Svizzera centrale
+
+        // 6. Blacklist Industriale
+        return !blacklist.some(s => Math.abs(s[0] - lat) < 0.04 && Math.abs(s[1] - lon) < 0.04);
+    }
+
+    // --- AUTENTICAZIONE ---
     function toggleAuth() {
         const p = document.getElementById('auth-panel');
         p.style.display = p.style.display === 'block' ? 'none' : 'block';
-        document.getElementById('report-panel').style.display = 'none';
     }
 
     function switchAuthMode() {
         authMode = (authMode === 'login') ? 'register' : 'login';
         document.getElementById('auth-title').innerText = (authMode === 'login') ? 'ACCESSO UTENTE' : 'REGISTRAZIONE';
         document.getElementById('auth-btn').innerText = (authMode === 'login') ? 'ENTRA' : 'CREA ACCOUNT';
-        document.getElementById('auth-switch').innerText = (authMode === 'login') ? 'Non hai un account? Registrati' : 'Hai già un account? Accedi';
+        document.getElementById('auth-switch').innerText = (authMode === 'login') ? 'Crea un nuovo account' : 'Hai già un account? Accedi';
     }
 
     function handleAuth() {
         const email = document.getElementById('auth-email').value;
         const pass = document.getElementById('auth-pass').value;
-        if(!email || !pass) return alert("Inserisci i dati!");
-
+        if(!email || !pass) return alert("Dati mancanti!");
         if(authMode === 'register') {
-            localStorage.setItem('user_' + email, pass);
-            alert("Registrazione completata! Ora puoi accedere.");
+            localStorage.setItem('u_' + email, pass);
+            alert("Registrato! Ora accedi.");
             switchAuthMode();
         } else {
-            const storedPass = localStorage.getItem('user_' + email);
-            if(storedPass === pass) {
+            if(localStorage.getItem('u_' + email) === pass) {
                 currentUser = email;
-                document.getElementById('login-zone').innerHTML = `<b style='color:#2ecc71'>🟢 ${email.split('@')[0]}</b>`;
+                document.getElementById('login-zone').innerHTML = `<b style='color:#2ecc71'>ID: ${email.split('@')[0]}</b>`;
                 toggleAuth();
-                alert("Accesso effettuato. Ora puoi segnalare.");
-            } else {
-                alert("Credenziali errate!");
-            }
+            } else { alert("Errore login!"); }
         }
     }
 
     function checkAccessForReport() {
-        if(!currentUser) {
-            alert("Devi essere registrato e aver effettuato l'accesso per segnalare un incendio.");
-            toggleAuth();
-        } else {
-            toggleReport();
-        }
-    }
-
-    // --- FUNZIONI MAPPA ---
-    const legend = L.control({position: 'bottomright'});
-    legend.onAdd = function() {
-        const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `<b>LIVELLO TERMICO (°C)</b>
-            <div><i style="background: #e74c3c"></i> Critico (> 67°C)</div>
-            <div><i style="background: #e67e22"></i> Elevato (52°C - 67°C)</div>
-            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>
-            <hr><div><i style="background: #9b59b6"></i> Segnalazione Manuale</div>`;
-        return div;
-    };
-    legend.addTo(map);
-
-    const blacklist = [[37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82], [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36], [44.43, 8.75], [43.58, 10.34], [39.11, 9.04], [40.627, 18.003], [40.514, 17.206], [37.211, 15.170], [37.438, 15.031], [38.792, 15.213], [41.695, 13.142], [39.075, 9.018], [39.212, 8.406], [40.554, 9.672], [42.566, 12.672], [43.363, 12.547], [43.852, 12.781], [44.678, 10.851], [45.145, 9.941], [45.458, 10.457], [45.528, 9.799], [45.412, 9.116], [45.485, 9.039], [45.639, 9.605], [45.642, 9.260], [45.782, 8.682]];
-
-    function isWithinItaly(lat, lon) {
-        if (lat < 36.8 || lon < 7.5 || lat > 46.7) return false;
-        if (lon < 8.0 && lat > 43.5) return false;
-        if (lon > 13.6 && lat > 45.0) return false;
-        if (lon > 15.0 && lat > 42.5) return false;
-        if (lon > 8.5 && lon < 9.6 && lat > 41.3 && lat < 43.1) return false;
-        return !blacklist.some(s => Math.abs(s[0] - lat) < 0.05 && Math.abs(s[1] - lon) < 0.05);
+        if(!currentUser) { alert("Devi registrarti per segnalare!"); toggleAuth(); }
+        else { toggleReport(); }
     }
 
     function toggleReport() {
@@ -174,18 +164,11 @@
     function submitManualReport() {
         const coords = document.getElementById('rep-coords').value;
         const type = document.getElementById('rep-type').value;
-        const photo = document.getElementById('rep-photo').files[0];
-        if(!coords || !type || !photo) return alert("Compila tutti i campi obbligatori!");
-
+        if(!coords || !type || !document.getElementById('rep-photo').files[0]) return alert("Campi obbligatori!");
         const [lat, lon] = coords.split(',').map(Number);
         L.marker([lat, lon], {
-            icon: L.divIcon({
-                className: 'fire-marker',
-                html: `<div class="pulse" style="border:2px solid #9b59b6"></div><i class="fas fa-user-shield" style="color:#9b59b6; font-size:18px;"></i>`
-            })
+            icon: L.divIcon({ className: 'fire-marker', html: `<div class="pulse" style="border:2px solid #9b59b6"></div><i class="fas fa-user-shield" style="color:#9b59b6; font-size:18px;"></i>` })
         }).addTo(manualLayer).bindPopup(`<b>REPORT DI ${currentUser}</b><br>Tipo: ${type}`);
-
-        alert("Segnalazione pubblicata!");
         toggleReport();
     }
 
@@ -205,23 +188,26 @@
                     const tempC = (parseFloat(d[2]) - 273.15).toFixed(1);
                     const color = tempC > 67 ? "#e74c3c" : (tempC > 52 ? "#e67e22" : "#f1c40f");
                     L.marker([lat, lon], {
-                        icon: L.divIcon({
-                            className: 'fire-marker',
-                            html: `<div class="pulse" style="border:1px solid ${color}"></div><i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`
-                        })
-                    }).addTo(firesLayer).bindPopup(`<b>ALERT NASA</b><br>Temp: ${tempC}°C`);
+                        icon: L.divIcon({ className: 'fire-marker', html: `<div class="pulse" style="border:1px solid ${color}"></div><i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>` })
+                    }).addTo(firesLayer).bindPopup(`<b>NASA ALERT</b><br>Temp: ${tempC}°C`);
                 }
             });
             document.getElementById('count').innerText = `${count} Alert Operativi`;
-            document.getElementById('area').innerText = `Superficie Italia: ${(count * 14.06).toFixed(2)} ha`;
+            document.getElementById('area').innerText = `Area: ${(count * 14.06).toFixed(2)} ha`;
         } catch (e) { console.error(e); }
     }
 
     function openNews() {
-        const choice = prompt("1-Vigilfuoco | 2-Prot. Civile | 3-AIB | 4-Meteo", "1");
-        const urls = {"1": "https://www.vigilfuoco.it/media/notizie/dal-territorio", "2": "https://www.iononrischio.gov.it", "3": "http://www.pcn.minambiente.it", "4": "http://www.meteoam.it"};
-        if(urls[choice]) window.open(urls[choice], '_blank');
+        window.open("https://www.vigilfuoco.it/media/notizie/dal-territorio", '_blank');
     }
+
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `<b>LEGENDA</b><div><i style="background: #e74c3c"></i> Critico</div><div><i style="background: #9b59b6"></i> Segnalazione</div>`;
+        return div;
+    };
+    legend.addTo(map);
 
     loadFires();
     setInterval(loadFires, 600000);
