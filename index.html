@@ -9,7 +9,7 @@
     <style>
         html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; background: #1a1a1a; overflow: hidden; }
         header { height: 60px; background: #1a1a1a; color: white; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; border-bottom: 1px solid #333; z-index: 1001; position: relative; }
-        #map { height: calc(100vh - 60px); width: 100%; background: #000; }
+        #map { height: calc(100vh - 60px); width: 100%; background: #000; cursor: crosshair; }
         .stats { font-weight: bold; line-height: 1.2; }
         .area-info { font-size: 0.75em; color: #ffa500; display: block; }
         .legend { background: rgba(255,255,255,0.95); padding: 10px; border-radius: 8px; font-size: 11px; color: #333; box-shadow: 0 0 15px rgba(0,0,0,0.4); }
@@ -20,6 +20,13 @@
         .pulse { width: 30px; height: 30px; border-radius: 50%; position: absolute; animation: pulse 1.8s infinite; pointer-events: none; }
         .btn-news { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-refresh { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-report { background: #e67e22; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        /* Pannello Segnalazione */
+        #report-panel { position: fixed; top: 70px; left: 20px; background: #2c3e50; color: white; padding: 15px; border-radius: 8px; z-index: 2000; display: none; width: 280px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #report-panel input, #report-panel select { width: 100%; margin-bottom: 10px; padding: 8px; box-sizing: border-box; border-radius: 4px; border: none; }
+        #report-panel label { font-size: 11px; color: #bdc3c7; display: block; margin-bottom: 4px; }
+        .close-btn { float: right; cursor: pointer; color: #e74c3c; }
     </style>
 </head>
 <body>
@@ -30,6 +37,7 @@
         <span class="area-info" id="area">Sistema di filtraggio confini attivo...</span>
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn-report" onclick="toggleReport()"><i class="fas fa-bullhorn"></i> SEGNALA</button>
         <button class="btn-news" onclick="openNews()">NOTIZIE RAPIDE</button>
         <button class="btn-refresh" onclick="loadFires()"><i class="fas fa-sync"></i> REFRESH</button>
         <div id="login-zone">
@@ -38,6 +46,27 @@
         </div>
     </div>
 </header>
+
+<div id="report-panel">
+    <span class="close-btn" onclick="toggleReport()">✖</span>
+    <h3>NUOVA SEGNALAZIONE</h3>
+    <label>1. Clicca sulla mappa per le coordinate</label>
+    <input type="text" id="rep-coords" placeholder="Lat, Lon" readonly required>
+    
+    <label>2. Tipo di incendio (Obbligatorio)</label>
+    <select id="rep-type" required>
+        <option value="">-- Seleziona --</option>
+        <option value="Boschivo">Boschivo</option>
+        <option value="Interfaccia">Interfaccia (Case/Bosco)</option>
+        <option value="Sterpaglie">Sterpaglie / Agricolo</option>
+        <option value="Industriale">Industriale</option>
+    </select>
+
+    <label>3. Foto (Obbligatorio)</label>
+    <input type="file" id="rep-photo" accept="image/*" required>
+
+    <button onclick="submitManualReport()" style="width:100%; background:#2ecc71; color:white; border:none; padding:10px; border-radius:4px; cursor:pointer; font-weight:bold;">INVIA SEGNALAZIONE</button>
+</div>
 
 <div id="map"></div>
 
@@ -48,6 +77,7 @@
     const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
     
     const firesLayer = L.layerGroup().addTo(map);
+    const manualLayer = L.layerGroup().addTo(map); // Livello per segnalazioni manuali
     const baseLayers = { "🛰️ Vista Satellitare": sat, "⛰️ Mappa Topografica": topo };
     L.control.layers(baseLayers, null, {collapsed: false, position: 'topright'}).addTo(map);
 
@@ -57,7 +87,9 @@
         div.innerHTML = `<b>LIVELLO TERMICO (°C)</b>
             <div><i style="background: #e74c3c"></i> Critico (> 67°C)</div>
             <div><i style="background: #e67e22"></i> Elevato (52°C - 67°C)</div>
-            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>`;
+            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>
+            <hr>
+            <div><i style="background: #9b59b6"></i> Segnalazione Manuale</div>`;
         return div;
     };
     legend.addTo(map);
@@ -65,27 +97,55 @@
     const blacklist = [[37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82], [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36], [44.43, 8.75], [43.58, 10.34], [39.11, 9.04], [40.627, 18.003], [40.514, 17.206], [37.211, 15.170], [37.438, 15.031], [38.792, 15.213], [41.695, 13.142], [39.075, 9.018], [39.212, 8.406], [40.554, 9.672], [42.566, 12.672], [43.363, 12.547], [43.852, 12.781], [44.678, 10.851], [45.145, 9.941], [45.458, 10.457], [45.528, 9.799], [45.412, 9.116], [45.485, 9.039], [45.639, 9.605], [45.642, 9.260], [45.782, 8.682]];
 
     function isWithinItaly(lat, lon) {
-        // --- 1. FILTRO SUD (ALGERIA / TUNISIA) ---
         if (lat < 36.8) return false; 
-
-        // --- 2. FILTRO OVEST (FRANCIA / MONACO) ---
         if (lon < 7.5) return false;
         if (lon < 8.0 && lat > 43.5) return false;
-
-        // --- 3. FILTRO EST (BALCANI / SLOVENIA / CROAZIA) ---
         if (lon > 13.6 && lat > 45.0) return false;
         if (lon > 15.0 && lat > 42.5) return false;
         if (lon > 16.5 && lat < 42.5) return false;
-
-        // --- 4. RIMOZIONE CORSICA ---
         if (lon > 8.5 && lon < 9.6 && lat > 41.3 && lat < 43.1) return false;
-
-        // --- 5. FILTRO NORD (SVIZZERA / AUSTRIA) ---
-        // Abbassato a 46.7 per rimuovere la fiammella svizzera
         if (lat > 46.7) return false;
-
-        // --- 6. BLACKLIST INDUSTRIALE ---
         return !blacklist.some(s => Math.abs(s[0] - lat) < 0.05 && Math.abs(s[1] - lon) < 0.05);
+    }
+
+    // --- FUNZIONI SEGNALAZIONE MANUALE ---
+    function toggleReport() {
+        const p = document.getElementById('report-panel');
+        p.style.display = p.style.display === 'block' ? 'none' : 'block';
+    }
+
+    map.on('click', function(e) {
+        if(document.getElementById('report-panel').style.display === 'block') {
+            document.getElementById('rep-coords').value = e.latlng.lat.toFixed(4) + ", " + e.latlng.lng.toFixed(4);
+        }
+    });
+
+    function submitManualReport() {
+        const coords = document.getElementById('rep-coords').value;
+        const type = document.getElementById('rep-type').value;
+        const photo = document.getElementById('rep-photo').files[0];
+
+        if(!coords || !type || !photo) {
+            alert("Errore: Tutti i campi (Coordinate, Tipo e Foto) sono obbligatori!");
+            return;
+        }
+
+        const [lat, lon] = coords.split(',').map(Number);
+        
+        // Creazione marker manuale
+        L.marker([lat, lon], {
+            icon: L.divIcon({
+                className: 'fire-marker',
+                html: `<div class="pulse" style="border:2px solid #9b59b6"></div><i class="fas fa-user-shield" style="color:#9b59b6; font-size:18px;"></i>`
+            })
+        }).addTo(manualLayer).bindPopup(`<b>REPORT MANUALE</b><br>Tipo: ${type}<br><small>Verificato da utente</small>`);
+
+        alert("Segnalazione inviata con successo sul terminale locale!");
+        toggleReport();
+        // Reset campi
+        document.getElementById('rep-type').value = "";
+        document.getElementById('rep-photo').value = "";
+        document.getElementById('rep-coords').value = "";
     }
 
     async function loadFires() {
