@@ -204,7 +204,12 @@
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `<b>LEGENDA</b><div><i style="background: #e74c3c"></i> Critico</div><div><i style="background: #9b59b6"></i> Segnalazione</div>`;
+        div.innerHTML = `<b>LIVELLO TERMICO (°C)</b>
+            <div><i style="background: #e74c3c"></i> Critico (> 67°C)</div>
+            <div><i style="background: #e67e22"></i> Elevato (52°C - 67°C)</div>
+            <div><i style="background: #f1c40f"></i> Moderato (< 52°C)</div>
+            <hr>
+            <div><i style="background: #9b59b6"></i> Segnalazione Manuale</div>`;
         return div;
     };
     legend.addTo(map);
