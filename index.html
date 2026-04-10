@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MONITORAGGIO INCENDI ITALIA - CONFINI OTTIMIZZATI</title>
+    <title>MONITORAGGIO INCENDI ITALIA - BLOCCO ESTERO TOTALE</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -89,32 +89,30 @@
 
     const blacklist = [[37.13, 15.21], [44.91, 8.89], [40.63, 14.92], [42.09, 11.82], [45.45, 12.23], [37.15, 14.23], [40.48, 17.22], [43.60, 13.36], [44.43, 8.75], [43.58, 10.34], [39.11, 9.04], [40.627, 18.003], [40.514, 17.206], [37.211, 15.170], [37.438, 15.031], [38.792, 15.213], [41.695, 13.142], [39.075, 9.018], [39.212, 8.406], [40.554, 9.672], [42.566, 12.672], [43.363, 12.547], [43.852, 12.781], [44.678, 10.851], [45.145, 9.941], [45.458, 10.457], [45.528, 9.799], [45.412, 9.116], [45.485, 9.039], [45.639, 9.605], [45.642, 9.260], [45.782, 8.682]];
 
-    // --- FUNZIONE CONFINI AGGIORNATA ---
+    // --- FILTRO BLINDATO ESTERO ---
     function isWithinItaly(lat, lon) {
-        // 1. NORD AFRICA: Resta fuori tutto ciò che è sotto il 36.5 (Tunisia/Algeria eliminate)
-        if (lat < 36.5) return false; 
+        // BLOCCO NORD AFRICA (Elimina Algeria e Tunisia)
+        if (lat < 36.6) return false; 
 
-        // 2. OVEST: Confine con la Francia. Teniamo tutto ciò che è sopra 6.6
-        if (lon < 6.6) return false;
+        // BLOCCO OVEST (Francia e Spagna)
+        if (lon < 6.5) return false;
 
-        // 3. CORSICA vs SARDEGNA: Filtro di precisione per non perdere fiamme sarde
-        if (lat > 41.3 && lat < 43.1 && lon > 8.4 && lon < 9.7) return false;
+        // BLOCCO CORSICA (Elimina tutto il quadrante francese)
+        if (lat > 41.3 && lat < 43.1 && lon > 8.4 && lon < 9.6) return false;
 
-        // 4. EST: Balcani e Adriatico. Taglio netto a 18.6 gradi Est
+        // BLOCCO EST (Balcani, Croazia, Slovenia e Mare Adriatico Orientale)
         if (lon > 18.6) return false;
-        if (lat > 45.3 && lon > 13.6) return false; 
+        if (lon > 13.6 && lat > 45.4) return false; 
+        if (lon > 15.0 && lat > 42.5) return false;
 
-        // 5. NORD: Svizzera e Austria. 
+        // BLOCCO NORD (Svizzera e Austria)
         if (lat > 47.1) return false;
-        if (lat > 45.9 && lon > 7.1 && lon < 10.5) {
-             if (lat > 46.5) return false; 
-        }
+        if (lat > 46.5 && lon < 10.5 && lon > 7.0) return false;
 
-        // 6. FILTRO BLACKLIST (Zone industriali italiane)
+        // BLACKLIST INDUSTRIALE
         return !blacklist.some(s => Math.abs(s[0] - lat) < 0.03 && Math.abs(s[1] - lon) < 0.03);
     }
 
-    // --- LOGICA AUTENTICAZIONE ---
     function toggleAuth() {
         const p = document.getElementById('auth-panel');
         p.style.display = p.style.display === 'block' ? 'none' : 'block';
@@ -200,7 +198,6 @@
         window.open("https://www.vigilfuoco.it/media/notizie/dal-territorio", '_blank');
     }
 
-    // --- LEGENDA ORIGINALE RIPRISTINATA ---
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'legend');
