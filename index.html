@@ -2,149 +2,95 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISTEMA MONITORAGGIO INCENDI ITALIA v7.0 - ULTIMATE</title>
+    <title>SISTEMA MONITORAGGIO INCENDI - RECOVERY</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        html, body { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; background: #0b0e11; color: white; overflow: hidden; }
-        header { height: 60px; background: #1a1d21; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 2px solid #e74c3c; z-index: 1001; position: relative; }
-        #map { height: calc(100vh - 60px); width: 100%; background: #000; }
-        
-        .stats { line-height: 1.2; }
-        .alert-count { font-weight: bold; color: #fff; font-size: 1.1em; }
-        .area-ha { font-size: 0.75em; color: #ffa500; display: block; font-family: monospace; }
-
-        .btn { border: none; padding: 10px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; margin-left: 10px; font-size: 12px; text-transform: uppercase; }
-        .btn-report { background: #e67e22; } .btn-news { background: #3498db; } .btn-refresh { background: #2ecc71; } .btn-login { background: #e74c3c; }
-        .btn:hover { filter: brightness(1.2); transform: scale(1.02); }
-
-        .panel { position: fixed; top: 80px; left: 20px; background: #1a1d21; border: 1px solid #444; padding: 25px; border-radius: 8px; z-index: 2000; display: none; width: 320px; box-shadow: 0 10px 40px #000; }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 4px; border: 1px solid #333; background: #2c3136; color: white; box-sizing: border-box; }
-        
-        .wgs-display { background: #000; border: 1px solid #e74c3c; padding: 10px; border-radius: 4px; margin: 10px 0; font-family: monospace; color: #2ecc71; font-size: 13px; }
-
-        /* PULSE ANIMATION */
-        @keyframes pulse-ring { 0% { transform: scale(0.5); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
-        .pulse { position: absolute; width: 30px; height: 30px; border-radius: 50%; animation: pulse-ring 1.5s infinite; pointer-events: none; margin-left: -11px; margin-top: -11px; }
-        
-        .legend { background: rgba(26,29,33,0.95); padding: 15px; border-radius: 8px; border: 1px solid #444; color: white; font-size: 11px; line-height: 1.8; }
-        .legend i { width: 12px; height: 12px; float: left; margin-right: 8px; border-radius: 2px; margin-top: 4px; }
+        body { margin: 0; padding: 0; background: #0b0e11; color: white; font-family: sans-serif; }
+        header { height: 60px; background: #1a1d21; display: flex; align-items: center; padding: 0 20px; border-bottom: 2px solid #e74c3c; justify-content: space-between; }
+        #map { height: calc(100vh - 60px); width: 100%; }
+        .stats { line-height: 1.1; }
+        .btn { border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; margin-left: 5px; }
+        .btn-refresh { background: #2ecc71; }
+        /* Animazione Pulse Corretta */
+        .fire-icon { position: relative; }
+        .pulse { 
+            position: absolute; width: 20px; height: 20px; 
+            border-radius: 50%; background: rgba(231, 76, 60, 0.5);
+            animation: pulse-out 1.5s infinite; transform: translate(-25%, -25%);
+        }
+        @keyframes pulse-out { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
     </style>
 </head>
 <body>
 
 <header>
     <div class="stats">
-        <div class="alert-count">IT ALERT NASA: <span id="count">0</span></div>
-        <div class="area-ha" id="area">Area: 0,00 ha</div>
+        <b style="font-size:1.2em">IT ALERT NASA: <span id="count">...</span></b><br>
+        <small id="area" style="color:#ffa500">Area stimata: 0 ha</small>
     </div>
-    <div style="display:flex; align-items:center;">
-        <button class="btn btn-report" onclick="openReport()">Segnala</button>
-        <button class="btn btn-news" onclick="window.open('https://www.vigilfuoco.it/media/notizie/dal-territorio')">VVF News</button>
-        <button class="btn btn-refresh" onclick="getData()"><i class="fas fa-sync"></i></button>
-        <div id="user-slot"><button class="btn btn-login" onclick="openPanel('auth-p')">Accedi</button></div>
+    <div>
+        <button class="btn btn-refresh" onclick="fetchNASA()">AGGIORNA DATI</button>
     </div>
 </header>
-
-<div id="auth-p" class="panel"><span style="float:right;cursor:pointer" onclick="closeAll()">×</span><h3>Login</h3><input type="email" id="email" placeholder="Email"><button class="btn btn-login" style="width:100%" onclick="login()">Entra</button></div>
-
-<div id="report-p" class="panel">
-    <span style="float:right;cursor:pointer" onclick="closeAll()">×</span>
-    <h3>Segnalazione</h3>
-    <div class="wgs-display" id="wgs-info">Seleziona punto sulla mappa</div>
-    <input type="hidden" id="lat"><input type="hidden" id="lon">
-    <select id="type"><option value="">Tipo...</option><option>Boschivo</option></select>
-    <input type="file" id="photo" accept="image/*">
-    <button class="btn btn-refresh" style="width:100%" onclick="send()">Invia</button>
-</div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', { center: [42.0, 12.5], zoom: 6, minZoom: 5 });
+    const map = L.map('map').setView([42.0, 12.5], 6);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-    const fires = L.layerGroup().addTo(map);
-    const circles = L.layerGroup().addTo(map);
+    const fireLayer = L.layerGroup().addTo(map);
 
-    function toDMS(v, axis) {
-        const abs = Math.abs(v);
-        const d = Math.floor(abs), m = Math.floor((abs-d)*60), s = ((abs-d-m/60)*3600).toFixed(2);
-        return `${d}°${m}'${s}"${v>=0?(axis==='lat'?'N':'E'):(axis==='lat'?'S':'W')}`;
-    }
-
-    // --- FILTRO REALE (ZERO ERRORI) ---
+    // Filtro Geografico Semplice (Solo rettangolo Italia per evitare crash)
     function isItaly(lat, lon) {
-        // Lampedusa OK
-        if (lat > 35.4 && lat < 35.7 && lon > 12.4 && lon < 12.7) return true;
-        // Mura Elettroniche
-        if (lat < 36.6 || lat > 47.1 || lon < 6.6 || lon > 18.6) return false;
-        // Corsica OFF
-        if (lat > 41.3 && lat < 43.1 && lon > 8.4 && lon < 9.6) return false;
-        // Balcani / Slovenia OFF
-        if (lat > 45.4 && lon > 13.6) return false;
-        if (lat < 42.0 && lon > 18.2) return false;
-        // Nord Africa OFF
-        if (lat < 37.5 && lon < 11.5) return false;
-        return true;
+        return (lat > 35.0 && lat < 47.5 && lon > 6.0 && lon < 19.0);
     }
 
-    async function getData() {
+    async function fetchNASA() {
+        document.getElementById('count').innerText = "CARICAMENTO...";
         const url = "https://corsproxy.io/?" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1");
+        
         try {
-            const res = await fetch(url);
-            const text = await res.text();
-            const rows = text.split('\n').slice(1);
-            fires.clearLayers(); circles.clearLayers();
-            let count = 0;
+            const response = await fetch(url);
+            const data = await response.text();
+            const lines = data.split('\n').slice(1);
+            
+            fireLayer.clearLayers();
+            let total = 0;
 
-            rows.forEach(r => {
-                const c = r.split(',');
-                if(c.length < 13) return;
-                const lat = parseFloat(c[0]), lon = parseFloat(c[1]), temp = Math.round(parseFloat(c[2])-273.15);
-                
-                // BLOCCO TOTALE ESTERNO
-                if (!isItaly(lat, lon)) return; 
+            lines.forEach(line => {
+                const parts = line.split(',');
+                if (parts.length < 3) return;
 
-                count++;
-                const col = temp > 67 ? "#e74c3c" : (temp > 52 ? "#e67e22" : "#f1c40f");
-                
-                // Icona Pulse
-                L.marker([lat, lon], {
-                    icon: L.divIcon({ className: '', html: `<div class="pulse" style="background:${col}"></div><i class="fas fa-fire" style="color:${col}; font-size:16px; position:relative; z-index:10;"></i>` })
-                }).addTo(fires).bindPopup(`NASA: ${temp}°C<br>${toDMS(lat,'lat')} ${toDMS(lon,'lon')}`);
+                const lat = parseFloat(parts[0]);
+                const lon = parseFloat(parts[1]);
+                const temp = Math.round(parseFloat(parts[2]) - 273.15);
 
-                // CERCHIO REALE 375m (14.06 ha) - Leaflet usa METRI
-                L.circle([lat, lon], { radius: 375, color: col, weight: 1, fillOpacity: 0.2, interactive: false }).addTo(circles);
+                if (isItaly(lat, lon)) {
+                    total++;
+                    const color = temp > 60 ? "#ff0000" : "#ffa500";
+                    
+                    L.marker([lat, lon], {
+                        icon: L.divIcon({
+                            className: 'fire-icon',
+                            html: `<div class="pulse" style="background:${color}"></div><i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`
+                        })
+                    }).addTo(fireLayer).bindPopup(`Rilevamento NASA: ${temp}°C`);
+                }
             });
 
-            document.getElementById('count').innerText = count;
-            document.getElementById('area').innerText = `Area: ${(count * 14.06).toLocaleString('it-IT')} ha`;
-        } catch(e) {}
+            document.getElementById('count').innerText = total;
+            document.getElementById('area').innerText = `Area stimata: ${total * 14} ha`;
+
+        } catch (error) {
+            document.getElementById('count').innerText = "ERRORE CONNESSIONE";
+        }
     }
 
-    // UI & Segnalazioni
-    let user = localStorage.getItem('fire_u');
-    if(user) document.getElementById('user-slot').innerHTML = `<span style="color:#2ecc71;font-weight:bold;margin-right:10px">ID: ${user.split('@')[0].toUpperCase()}</span>`;
-
-    function login() { const m = document.getElementById('email').value; if(m) { localStorage.setItem('fire_u', m); location.reload(); } }
-    function openPanel(id) { closeAll(); document.getElementById(id).style.display='block'; }
-    function openReport() { if(!user) openPanel('auth-p'); else openPanel('report-p'); }
-    function closeAll() { document.querySelectorAll('.panel').forEach(p=>p.style.display='none'); }
-
-    map.on('click', e => {
-        if(document.getElementById('report-p').style.display === 'block') {
-            document.getElementById('lat').value = e.latlng.lat;
-            document.getElementById('lon').value = e.latlng.lng;
-            document.getElementById('wgs-info').innerText = `${toDMS(e.latlng.lat, 'lat')} | ${toDMS(e.latlng.lng, 'lon')}`;
-        }
-    });
-
-    function send() { alert("Inviato"); closeAll(); }
-
-    getData();
+    fetchNASA();
+    setInterval(fetchNASA, 300000); // Aggiorna ogni 5 minuti
 </script>
 </body>
 </html>
