@@ -2,35 +2,52 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>SISTEMA MONITORAGGIO INCENDI - RECOVERY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA MONITORAGGIO INCENDI ITALIA v8.0</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { margin: 0; padding: 0; background: #0b0e11; color: white; font-family: sans-serif; }
-        header { height: 60px; background: #1a1d21; display: flex; align-items: center; padding: 0 20px; border-bottom: 2px solid #e74c3c; justify-content: space-between; }
-        #map { height: calc(100vh - 60px); width: 100%; }
-        .stats { line-height: 1.1; }
-        .btn { border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; margin-left: 5px; }
-        .btn-refresh { background: #2ecc71; }
-        /* Animazione Pulse Corretta */
-        .fire-icon { position: relative; }
-        .pulse { 
-            position: absolute; width: 20px; height: 20px; 
-            border-radius: 50%; background: rgba(231, 76, 60, 0.5);
-            animation: pulse-out 1.5s infinite; transform: translate(-25%, -25%);
+        html, body { height: 100%; margin: 0; padding: 0; background: #0b0e11; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        header { height: 65px; background: #1a1d21; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 3px solid #e74c3c; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 1001; position: relative; }
+        #map { height: calc(100vh - 65px); width: 100%; background: #000; }
+        
+        .stats-box { line-height: 1.2; }
+        .main-alert { font-size: 1.2em; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+        .sub-stats { font-size: 0.8em; color: #ffa500; font-family: 'Courier New', monospace; }
+
+        .nav-btns { display: flex; gap: 10px; }
+        .btn { border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; transition: all 0.3s; text-transform: uppercase; font-size: 11px; }
+        .btn-report { background: #e67e22; }
+        .btn-vvf { background: #3498db; }
+        .btn-sync { background: #2ecc71; }
+        .btn-login { background: #e74c3c; }
+        .btn:hover { filter: brightness(1.2); transform: translateY(-2px); }
+
+        /* EFFETTO PULSE CORRETTO */
+        .fire-marker-container { position: relative; width: 20px; height: 20px; }
+        .pulse-core { 
+            position: absolute; width: 24px; height: 24px; 
+            border-radius: 50%; animation: pulse-ring 1.8s infinite;
+            left: -4px; top: -4px;
         }
-        @keyframes pulse-out { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+        @keyframes pulse-ring { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
+
+        .legend { background: rgba(26,29,33,0.9); padding: 12px; border: 1px solid #444; color: white; font-size: 11px; border-radius: 5px; line-height: 1.6; }
+        .legend i { width: 12px; height: 12px; float: left; margin-right: 8px; border-radius: 2px; margin-top: 3px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="stats">
-        <b style="font-size:1.2em">IT ALERT NASA: <span id="count">...</span></b><br>
-        <small id="area" style="color:#ffa500">Area stimata: 0 ha</small>
+    <div class="stats-box">
+        <div class="main-alert">IT ALERT NASA: <span id="count">CARICAMENTO...</span></div>
+        <div class="sub-stats" id="area-text">Superficie stimata: 0.00 ha</div>
     </div>
-    <div>
-        <button class="btn btn-refresh" onclick="fetchNASA()">AGGIORNA DATI</button>
+    <div class="nav-btns">
+        <button class="btn btn-report" onclick="alert('Usa la mappa per selezionare il punto')">Segnala</button>
+        <button class="btn btn-vvf" onclick="window.open('https://www.vigilfuoco.it/media/notizie/dal-territorio')">VVF News</button>
+        <button class="btn btn-sync" onclick="syncData()"><i class="fas fa-sync"></i></button>
+        <button class="btn btn-login">Accedi</button>
     </div>
 </header>
 
@@ -38,59 +55,109 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map').setView([42.0, 12.5], 6);
+    // Inizializzazione Mappa
+    const map = L.map('map', { center: [42.0, 12.5], zoom: 6 });
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-    const fireLayer = L.layerGroup().addTo(map);
+    const fireGroup = L.layerGroup().addTo(map);
+    const circleGroup = L.layerGroup().addTo(map);
 
-    // Filtro Geografico Semplice (Solo rettangolo Italia per evitare crash)
-    function isItaly(lat, lon) {
-        return (lat > 35.0 && lat < 47.5 && lon > 6.0 && lon < 19.0);
+    // Filtro Geografico "Sicuro"
+    function isInsideItaly(lat, lon) {
+        // Rettangolo generale Italia + Isole
+        const inMain = (lat > 36.5 && lat < 47.2 && lon > 6.5 && lon < 18.5);
+        // Eccezione Lampedusa
+        const inLampedusa = (lat > 35.4 && lat < 35.6 && lon > 12.5 && lon < 12.7);
+        // Esclusione manuale Corsica (approssimativa)
+        const isCorsica = (lat > 41.3 && lat < 43.0 && lon > 8.5 && lon < 9.6);
+
+        return (inMain || inLampedusa) && !isCorsica;
     }
 
-    async function fetchNASA() {
-        document.getElementById('count').innerText = "CARICAMENTO...";
-        const url = "https://corsproxy.io/?" + encodeURIComponent("https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1");
-        
+    async function syncData() {
+        const countEl = document.getElementById('count');
+        const areaEl = document.getElementById('area-text');
+        countEl.innerText = "SINCRO...";
+
+        // Proxy per evitare errori CORS
+        const proxy = "https://corsproxy.io/?";
+        const nasaUrl = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/6c7f29542d837e182b0bf7292cb52b99/VIIRS_SNPP_NRT/world/1";
+
         try {
-            const response = await fetch(url);
-            const data = await response.text();
-            const lines = data.split('\n').slice(1);
+            const response = await fetch(proxy + encodeURIComponent(nasaUrl));
+            const csvText = await response.text();
+            const rows = csvText.split('\n');
             
-            fireLayer.clearLayers();
-            let total = 0;
+            fireGroup.clearLayers();
+            circleGroup.clearLayers();
+            
+            let activeFires = 0;
 
-            lines.forEach(line => {
-                const parts = line.split(',');
-                if (parts.length < 3) return;
+            for (let i = 1; i < rows.length; i++) {
+                const columns = rows[i].split(',');
+                if (columns.length < 3) continue;
 
-                const lat = parseFloat(parts[0]);
-                const lon = parseFloat(parts[1]);
-                const temp = Math.round(parseFloat(parts[2]) - 273.15);
+                const lat = parseFloat(columns[0]);
+                const lon = parseFloat(columns[1]);
+                const tempK = parseFloat(columns[2]);
+                const tempC = Math.round(tempK - 273.15);
 
-                if (isItaly(lat, lon)) {
-                    total++;
-                    const color = temp > 60 ? "#ff0000" : "#ffa500";
-                    
-                    L.marker([lat, lon], {
-                        icon: L.divIcon({
-                            className: 'fire-icon',
-                            html: `<div class="pulse" style="background:${color}"></div><i class="fas fa-fire" style="color:${color}; font-size:16px;"></i>`
-                        })
-                    }).addTo(fireLayer).bindPopup(`Rilevamento NASA: ${temp}°C`);
+                if (isInsideItaly(lat, lon)) {
+                    activeFires++;
+                    const color = tempC > 65 ? "#ff3300" : (tempC > 50 ? "#ff9900" : "#ffcc00");
+
+                    // Marker con icona e pulsazione
+                    const icon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="fire-marker-container">
+                                <div class="pulse-core" style="background:${color}"></div>
+                                <i class="fas fa-fire" style="color:${color}; font-size:16px; position:absolute; left:0; top:0; text-shadow: 0 0 3px #000;"></i>
+                               </div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+
+                    L.marker([lat, lon], { icon: icon })
+                        .addTo(fireGroup)
+                        .bindPopup(`<b>NASA VIIRS</b><br>Intensità: ${tempC}°C<br>Coord: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+
+                    // Cerchio Area Reale 375m
+                    L.circle([lat, lon], {
+                        radius: 375,
+                        color: color,
+                        weight: 1,
+                        fillOpacity: 0.2,
+                        interactive: false
+                    }).addTo(circleGroup);
                 }
-            });
+            }
 
-            document.getElementById('count').innerText = total;
-            document.getElementById('area').innerText = `Area stimata: ${total * 14} ha`;
+            countEl.innerText = activeFires;
+            areaEl.innerText = `Superficie stimata: ${(activeFires * 14.06).toFixed(2)} ha`;
 
         } catch (error) {
-            document.getElementById('count').innerText = "ERRORE CONNESSIONE";
+            console.error("Errore fetch:", error);
+            countEl.innerText = "OFFLINE";
         }
     }
 
-    fetchNASA();
-    setInterval(fetchNASA, 300000); // Aggiorna ogni 5 minuti
+    // Legenda UI
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+            <strong>CRITICITÀ</strong><br>
+            <i style="background:#ff3300"></i> Alta (>65°C)<br>
+            <i style="background:#ff9900"></i> Media (50-65°C)<br>
+            <i style="background:#ffcc00"></i> Bassa<br>
+        `;
+        return div;
+    };
+    legend.addTo(map);
+
+    // Avvio e Loop
+    syncData();
+    setInterval(syncData, 600000); // Ogni 10 minuti
 </script>
 </body>
 </html>
